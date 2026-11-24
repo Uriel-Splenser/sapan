@@ -1,0 +1,3183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sapán – Tablero</title>
+<style>
+  :root {
+    --texto: #fff6df;
+    --oro-1: #ffd75e;
+    --oro-2: #e9a21b;
+    --marron: #3b2306;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh;
+    color: var(--texto);
+    font-family: Georgia, "Times New Roman", serif;
+    background:
+      radial-gradient(ellipse at 50% 30%, #2a8aa8 0%, #17566f 45%, #0b2c40 100%);
+    background-attachment: fixed;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 22px 12px 36px; gap: 18px;
+  }
+  header { text-align: center; }
+  h1 {
+    margin: 0; font-size: clamp(2.4rem, 8vw, 3.8rem);
+    letter-spacing: 0.08em; font-weight: bold;
+    background: linear-gradient(#fff3c4, #f3b83a);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 3px 0 rgba(0,0,0,.35));
+  }
+  .sub { margin: 2px 0 0; opacity: .85; font-style: italic; }
+
+  button {
+    font: inherit; font-weight: bold; font-size: 1.15rem;
+    color: var(--marron);
+    background: linear-gradient(var(--oro-1), var(--oro-2));
+    border: 0; border-radius: 999px;
+    padding: 13px 32px; min-height: 50px; cursor: pointer;
+    box-shadow: 0 4px 0 #a86a06, 0 8px 16px rgba(0,0,0,.35);
+    transition: transform .1s, box-shadow .1s;
+  }
+  button:hover { filter: brightness(1.06); }
+  button:active { transform: translateY(3px); box-shadow: 0 1px 0 #a86a06, 0 3px 8px rgba(0,0,0,.35); }
+  button:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
+
+  .tablero { width: 100%; max-width: 780px; }
+  svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+  .pop { transform-box: fill-box; transform-origin: center; animation: aparecer .45s ease-out both; }
+  @keyframes aparecer { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .pop { animation: none; } }
+
+  .leyenda {
+    list-style: none; margin: 0; padding: 0; max-width: 780px;
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+  }
+  .leyenda li {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(0,0,0,.28); border-radius: 999px;
+    padding: 6px 14px 6px 8px; font-size: .95rem;
+  }
+  .leyenda i {
+    width: 18px; height: 18px; border-radius: 50%; display: inline-block;
+    border: 2px solid #fff6df;
+  }
+
+  [hidden] { display: none !important; }
+  .tarjeta { width: 100%; max-width: 460px; background: rgba(0,0,0,.28); border-radius: 24px; padding: 22px 20px; display: flex; flex-direction: column; gap: 16px; }
+  .tarjeta h2 { margin: 0; font-size: 1.25rem; }
+  .cantidad { display: flex; gap: 10px; }
+  .opcion { flex: 1; background: rgba(255,255,255,.14); color: var(--texto); box-shadow: none; padding: 10px 0; font-size: 1.25rem; }
+  .opcion[aria-pressed="true"] { background: linear-gradient(var(--oro-1), var(--oro-2)); color: var(--marron); box-shadow: 0 3px 0 #a86a06; }
+  #nombres { display: flex; flex-direction: column; gap: 10px; }
+  .fila-nombre { display: flex; align-items: center; gap: 10px; }
+  .fila-nombre i { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff6df; flex: none; }
+  .fila-nombre input { flex: 1; min-width: 0; font: inherit; font-size: 1.05rem; padding: 10px 12px; border-radius: 12px; border: 0; background: #fff6df; color: var(--marron); }
+  .fila-nombre input:focus-visible { outline: 3px solid var(--oro-1); outline-offset: 2px; }
+
+  #juego { width: 100%; max-width: 1180px; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "controles" "tablero" "jugadores" "costos"; }
+  #controles { grid-area: controles; }
+  .tablero-col { grid-area: tablero; display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0; }
+  #jugadores { grid-area: jugadores; }
+  @media (min-width: 960px) {
+    #juego { grid-template-columns: minmax(0, 1fr) 360px; grid-template-areas: "tablero controles" "tablero jugadores" "tablero costos"; grid-template-rows: auto auto 1fr; align-items: start; }
+  }
+  .panel { background: rgba(0,0,0,.28); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .turno { border-radius: 14px; padding: 10px 14px; font-weight: bold; font-size: 1.2rem; text-align: center; color: #fff; background: var(--c); text-shadow: 0 1px 2px rgba(0,0,0,.55); border: 3px solid #fff6df; }
+  .dados { display: flex; justify-content: center; gap: 16px; }
+  .dado { width: 64px; height: 64px; background: #fff6df; border-radius: 14px; padding: 9px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); box-shadow: 0 4px 0 #b9a577, 0 6px 10px rgba(0,0,0,.35); }
+  .pip { width: 11px; height: 11px; border-radius: 50%; margin: auto; }
+  .pip.on { background: #2b2b2b; }
+  .dado.rueda { animation: rodar .5s linear infinite; }
+  @keyframes rodar { 0% { transform: rotate(0) scale(1); } 50% { transform: rotate(180deg) scale(1.12); } 100% { transform: rotate(360deg) scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .dado.rueda { animation: none; } .aro.on { animation: none; } }
+  .resultado { text-align: center; min-height: 2.7em; margin: 0; }
+  .botones { display: flex; gap: 10px; }
+  .botones button { flex: 1; padding: 12px 8px; }
+  button:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; filter: none; transform: none; }
+  .extra { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+  .secundario { background: rgba(255,255,255,.16); color: var(--texto); box-shadow: none; font-size: 1rem; min-height: 44px; padding: 8px 20px; }
+
+  #jugadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .jugador { background: rgba(0,0,0,.28); border-radius: 16px; padding: 10px; border: 3px solid transparent; display: flex; flex-direction: column; gap: 6px; }
+  .jugador.activo { border-color: var(--c); box-shadow: 0 0 14px var(--c); }
+  .cabecera { display: flex; align-items: center; gap: 8px; }
+  .cabecera i { width: 16px; height: 16px; border-radius: 50%; background: var(--c); border: 2px solid #fff6df; flex: none; }
+  .cabecera strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip { display: flex; align-items: center; gap: 6px; font-size: .9rem; }
+  .chip i { width: 12px; height: 12px; border-radius: 50%; flex: none; border: 1px solid #fff6df; }
+  .chip b { margin-left: auto; }
+
+  .aro { fill: none; stroke: #fff7a8; stroke-width: 5; stroke-linejoin: round; opacity: 0; pointer-events: none; }
+  .aro.on { opacity: 1; fill: rgba(255,255,255,.28); filter: drop-shadow(0 0 6px #fff); animation: pulso .8s ease-in-out infinite alternate; }
+  @keyframes pulso { from { stroke-opacity: .55; } to { stroke-opacity: 1; } }
+
+  .mensaje { margin: 0; text-align: center; font-weight: bold; line-height: 1.35; }
+  .aviso { margin: 0; text-align: center; font-size: .95rem; opacity: .92; min-height: 1.3em; }
+  #zona-dados { display: flex; flex-direction: column; gap: 12px; }
+  .tablero { position: relative; }
+  #svg2 { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .cand { cursor: pointer; }
+  .cand .hit { fill: transparent; stroke: transparent; pointer-events: all; }
+  .cand line.hit { stroke-width: 28; stroke-linecap: round; }
+  .cand .dot { fill: #fff; stroke: #3b2306; stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: latido 1.1s ease-in-out infinite alternate; }
+  .cand .borde { stroke: #3b2306; stroke-width: 9; stroke-linecap: round; opacity: .55; pointer-events: none; }
+  .cand .lin { stroke: #fff; stroke-width: 5; stroke-linecap: round; opacity: .9; pointer-events: none; }
+  .cand.sel .dot { fill: var(--c); transform: scale(1.8); animation: none; }
+  .cand.sel .lin { stroke: var(--c); stroke-width: 8; }
+  .cand.sel .borde { stroke-width: 12; }
+  @media (hover: hover) {
+    .cand:hover .dot { fill: var(--c); transform: scale(1.8); animation: none; }
+    .cand:hover .lin { stroke: var(--c); stroke-width: 8; }
+    .cand:hover .borde { stroke-width: 12; }
+  }
+  @keyframes latido { from { transform: scale(.85); } to { transform: scale(1.2); } }
+  @media (prefers-reduced-motion: reduce) { .cand .dot { animation: none; } }
+
+  #costos { grid-area: costos; gap: 8px; }
+  #costos h3 { margin: 0; font-size: 1.05rem; }
+  .tabla-costos { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  .tabla-costos th, .tabla-costos td { padding: 5px 6px; text-align: left; vertical-align: top; border-bottom: 1px solid rgba(255,255,255,.15); }
+  .tabla-costos thead th { opacity: .75; font-weight: normal; }
+  .tabla-costos td:last-child, .tabla-costos thead th:last-child { text-align: center; }
+  .coste { display: inline-flex; align-items: center; gap: 4px; margin: 0 8px 2px 0; white-space: nowrap; }
+  .coste i { width: 11px; height: 11px; border-radius: 50%; border: 1px solid #fff6df; }
+  .nota { margin: 0; font-size: .8rem; opacity: .85; line-height: 1.35; }
+  .puntos { font-weight: bold; color: var(--oro-1); }
+  .piezas { font-size: .78rem; opacity: .8; }
+  .etiqueta { margin: 0; text-align: center; font-size: .9rem; opacity: .85; }
+  #construir { display: flex; flex-direction: column; gap: 8px; }
+  .cons button { min-height: 46px; padding: 10px 6px; font-size: 1rem; }
+  .cons button[aria-pressed="true"] { outline: 3px solid #fff; outline-offset: 2px; }
+  .velo { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(5,20,30,.85); }
+  .tarjeta-vic { width: 100%; max-width: 420px; text-align: center; display: flex; flex-direction: column; gap: 14px; padding: 28px 22px; border-radius: 24px; border: 3px solid var(--oro-1); background: linear-gradient(#2a8aa8, #17566f); }
+  .tarjeta-vic h2 { margin: 0; font-size: clamp(1.8rem, 7vw, 2.4rem); color: var(--oro-1); }
+  .tarjeta-vic p { margin: 0; font-size: 1.1rem; line-height: 1.5; }
+  .cand .anillo { fill: none; stroke: #fff; stroke-width: 3.5; animation: none; filter: drop-shadow(0 0 2px #000); }
+  .cand.sel .anillo { fill: none; stroke: var(--c); transform: scale(1.25); }
+  @media (hover: hover) { .cand:hover .anillo { fill: none; stroke: var(--c); transform: scale(1.25); } }
+
+  .registro { width: 100%; max-width: 780px; gap: 6px; }
+  .registro h3 { margin: 0; font-size: 1.05rem; }
+  #lista-registro { list-style: none; margin: 0; padding: 0; max-height: 180px; overflow: auto; display: flex; flex-direction: column; gap: 4px; font-size: .92rem; }
+  #lista-registro li { display: flex; align-items: flex-start; gap: 8px; line-height: 1.3; }
+  #lista-registro li:first-child { font-weight: bold; }
+  #lista-registro i { width: 10px; height: 10px; border-radius: 50%; margin-top: .35em; flex: none; border: 1px solid #fff6df; }
+  #comerciar, #proponer { width: 100%; }
+  .velo.opaco { background: #0b2c40; }
+  #oferta { display: flex; flex-direction: column; gap: 8px; }
+  .modal-caja { border-color: var(--c, var(--oro-1)); max-height: 92vh; overflow: auto; }
+  .modal-caja h2 { font-size: 1.45rem; }
+  .filas-desc { display: flex; flex-direction: column; gap: 8px; }
+  .fila-desc { display: flex; align-items: center; gap: 8px; text-align: left; }
+  .fila-desc .nom { flex: 1; display: flex; align-items: center; gap: 6px; font-size: 1rem; }
+  .fila-desc .nom i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #fff6df; flex: none; }
+  .fila-desc .cant { min-width: 1.6em; text-align: center; font-weight: bold; font-size: 1.25rem; }
+  button.paso { min-width: 46px; min-height: 46px; padding: 0; font-size: 1.5rem; border-radius: 50%; }
+  .opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+  button.opcion-r { background: rgba(255,255,255,.14); color: var(--texto); box-shadow: none; font-size: 1rem; padding: 8px 6px; min-height: 54px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  button.opcion-r[aria-pressed="true"] { background: linear-gradient(var(--oro-1), var(--oro-2)); color: var(--marron); box-shadow: 0 3px 0 #a86a06; }
+  .carta { width: 100px; height: 138px; margin: 0 auto; border-radius: 12px; border: 3px solid #fff6df; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: bold; font-size: 2.6rem; color: #fff6df; background: repeating-linear-gradient(45deg, #2a6f8a, #2a6f8a 8px, #1d5670 8px, #1d5670 16px); }
+  .carta.abierta { font-size: 1.2rem; color: #2b1a05; }
+  .cand .hex { fill: rgba(255,255,255,.22); stroke: #fff; stroke-width: 3; stroke-dasharray: 7 5; stroke-linejoin: round; pointer-events: none; }
+  .cand.sel .hex { fill: var(--c); fill-opacity: .55; stroke-dasharray: none; }
+  @media (hover: hover) { .cand:hover .hex { fill: var(--c); fill-opacity: .55; stroke-dasharray: none; } }
+
+  #cartas { display: flex; flex-direction: column; gap: 8px; }
+  .mano { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  button.carta-btn { flex: 1 1 140px; min-height: 48px; padding: 8px 12px; font-size: .95rem; }
+  .titulos { grid-column: 1 / -1; font-size: .9rem; line-height: 1.45; background: rgba(0,0,0,.28); border-radius: 14px; padding: 8px 12px; }
+  .insignia { color: var(--oro-1); font-weight: bold; font-size: .85rem; }
+
+  .tipo { display: flex; gap: 4px; flex: none; }
+  button.tipo-btn, button.nivel { min-height: 44px; padding: 6px 12px; font-size: .95rem; box-shadow: none; background: rgba(255,255,255,.14); color: var(--texto); }
+  button.tipo-btn[aria-pressed="true"], button.nivel[aria-pressed="true"] { background: linear-gradient(var(--oro-1), var(--oro-2)); color: var(--marron); box-shadow: 0 3px 0 #a86a06; }
+  .fila-nombre input:disabled { opacity: .8; }
+  #controles-bot { gap: 8px; }
+  #controles-bot button { flex: 1; min-height: 44px; padding: 8px 10px; font-size: .95rem; }
+  textarea.json { width: 100%; min-height: 150px; font: 12px/1.3 monospace; border-radius: 10px; border: 0; padding: 8px; background: #fff6df; color: #2b1a05; resize: vertical; }
+  #modo-prueba[aria-pressed="true"] { background: linear-gradient(var(--oro-1), var(--oro-2)); color: var(--marron); box-shadow: 0 3px 0 #a86a06; }
+  .campo { display: flex; flex-direction: column; gap: 6px; font-size: 1rem; }
+  .campo input { font: inherit; font-size: 1.15rem; padding: 10px 12px; border-radius: 12px; border: 0; background: #fff6df; color: var(--marron); }
+  .codigo { font-size: 2.6rem; letter-spacing: .25em; font-weight: bold; text-align: center; margin: 0; color: var(--oro-1); }
+  .link { word-break: break-all; text-align: center; }
+  .sala-op { flex: 1; background: rgba(255,255,255,.14); color: var(--texto); box-shadow: none; padding: 10px 0; font-size: 1.15rem; }
+  .sala-op[aria-pressed="true"] { background: linear-gradient(var(--oro-1), var(--oro-2)); color: var(--marron); box-shadow: 0 3px 0 #a86a06; }
+  .sala-op:disabled { opacity: .35; }
+  .lista-sala { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .lista-sala li { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,.22); border-radius: 12px; padding: 9px 12px; }
+  .pto { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; flex: none; background: #8aa; }
+  .lista-sala .pto { margin-right: 0; }
+  .pto.ok { background: #6fdc65; } .pto.rec { background: #ffb347; } .pto.off { background: #e0443e; } .pto.bot { background: #8aa; }
+  .presencia { display: flex; align-items: center; }
+  .conexion { margin: 4px 0 0; font-size: .92rem; text-align: center; }
+  .conexion.ok { color: #9be58f; } .conexion.mal { color: #ffb86b; }
+  .tarjeta .nota { margin: 0; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>SAPÁN</h1>
+    <p class="sub" id="sub">Elegí cómo querés jugar</p>
+    <p id="estado-conexion" class="conexion" hidden></p>
+  </header>
+
+  <section id="portada" class="tarjeta">
+    <h2>¿Cómo querés jugar?</h2>
+    <button id="modo-local" type="button">Jugar local (con bots)</button>
+    <button id="modo-crear" type="button">Crear sala online</button>
+    <button id="modo-unir" type="button">Unirme a una sala</button>
+    <button id="retomar" type="button" class="secundario" hidden>Retomar la partida guardada</button>
+    <p id="aviso-red" class="aviso" role="alert"></p>
+  </section>
+
+  <section id="sala-crear" class="tarjeta" hidden>
+    <h2>Crear sala online</h2>
+    <label class="campo">Tu nombre
+      <input id="crear-nombre" type="text" maxlength="14" placeholder="Anfitrión" autocomplete="off">
+    </label>
+    <div id="crear-info" hidden>
+      <p class="etiqueta">Código de la sala</p>
+      <p id="crear-codigo" class="codigo"></p>
+      <p id="crear-link" class="piezas link"></p>
+      <button id="copiar-link" type="button" class="secundario">Copiar link</button>
+      <p class="nota">El link solo sirve si este archivo está publicado en internet. Si no, tus amigos pueden abrir el mismo archivo y usar el código.</p>
+    </div>
+    <h2>Jugadores en total</h2>
+    <div class="cantidad" role="group" aria-label="Cantidad de jugadores">
+      <button type="button" class="sala-op sala-n" data-n="2" aria-pressed="true">2</button>
+      <button type="button" class="sala-op sala-n" data-n="3" aria-pressed="false">3</button>
+      <button type="button" class="sala-op sala-n" data-n="4" aria-pressed="false">4</button>
+    </div>
+    <h2>Lugares ocupados por bots</h2>
+    <div class="cantidad" role="group" aria-label="Cantidad de bots">
+      <button type="button" class="sala-op sala-bots" data-b="0" aria-pressed="true">0</button>
+      <button type="button" class="sala-op sala-bots" data-b="1" aria-pressed="false">1</button>
+      <button type="button" class="sala-op sala-bots" data-b="2" aria-pressed="false">2</button>
+      <button type="button" class="sala-op sala-bots" data-b="3" aria-pressed="false">3</button>
+    </div>
+    <div id="crear-nivel" hidden>
+      <h2>Dificultad de los bots</h2>
+      <div class="cantidad" role="group" aria-label="Dificultad de los bots">
+        <button type="button" class="sala-op sala-niv" data-n="facil" aria-pressed="false">Fácil</button>
+        <button type="button" class="sala-op sala-niv" data-n="normal" aria-pressed="true">Normal</button>
+      </div>
+    </div>
+    <h2>En la sala</h2>
+    <ul id="lista-sala" class="lista-sala"></ul>
+    <p id="crear-estado" class="aviso" role="status"></p>
+    <button id="sala-empezar" type="button" disabled>Empezar</button>
+    <button id="sala-cancelar" type="button" class="secundario">Cancelar sala</button>
+  </section>
+
+  <section id="sala-unir" class="tarjeta" hidden>
+    <h2>Unirme a una sala</h2>
+    <label class="campo">Código de la sala (5 letras)
+      <input id="unir-codigo" type="text" maxlength="5" placeholder="ABCDE" autocomplete="off" autocapitalize="characters">
+    </label>
+    <label class="campo">Tu nombre
+      <input id="unir-nombre" type="text" maxlength="14" placeholder="Tu nombre" autocomplete="off">
+    </label>
+    <p id="unir-estado" class="aviso" role="alert"></p>
+    <button id="unir-entrar" type="button">Entrar</button>
+    <button id="unir-volver" type="button" class="secundario">Volver</button>
+  </section>
+
+  <section id="sala-espera" class="tarjeta" hidden>
+    <h2>Sala <span id="espera-codigo"></span></h2>
+    <ul id="lista-espera" class="lista-sala"></ul>
+    <p id="espera-detalle" class="aviso" role="status"></p>
+    <button id="espera-salir" type="button" class="secundario">Salir</button>
+  </section>
+
+  <section id="inicio" class="tarjeta" hidden>
+    <h2>¿Cuántos juegan?</h2>
+    <div class="cantidad" role="group" aria-label="Cantidad de jugadores">
+      <button type="button" class="opcion" data-n="2" aria-pressed="true">2</button>
+      <button type="button" class="opcion" data-n="3" aria-pressed="false">3</button>
+      <button type="button" class="opcion" data-n="4" aria-pressed="false">4</button>
+    </div>
+    <h2>Nombres</h2>
+    <div id="nombres"></div>
+    <div id="nivel-bots" hidden>
+      <h2>Dificultad de los bots</h2>
+      <div class="cantidad" role="group" aria-label="Dificultad de los bots">
+        <button type="button" class="nivel" data-n="facil" aria-pressed="false">Fácil</button>
+        <button type="button" class="nivel" data-n="normal" aria-pressed="true">Normal</button>
+      </div>
+    </div>
+    <button id="solo-bots" type="button" class="secundario">Solo bots: ver una partida automática</button>
+    <button id="empezar" type="button">Empezar partida</button>
+    <button id="inicio-volver" type="button" class="secundario">Volver</button>
+  </section>
+
+  <div id="juego" hidden>
+    <section class="panel" id="controles">
+      <div class="turno" id="turno"></div>
+      <div id="controles-bot" class="botones" hidden>
+        <button id="pausa-bot" type="button" class="secundario" aria-pressed="false">Pausar bots</button>
+        <button id="vel-bot" type="button" class="secundario">Velocidad: Normal</button>
+      </div>
+      <p class="mensaje" id="mensaje" aria-live="polite"></p>
+      <p class="aviso" id="aviso" aria-live="polite"></p>
+      <div id="zona-dados">
+      <div class="dados"><div class="dado" id="d1"></div><div class="dado" id="d2"></div></div>
+      <p class="resultado" id="resultado" aria-live="polite"></p>
+      <div class="botones">
+        <button id="tirar" type="button">Tirar dados</button>
+        <button id="terminar" type="button">Terminar turno</button>
+      </div>
+      <div id="oferta" hidden></div>
+      <div id="cartas" hidden></div>
+      <div id="construir" hidden>
+        <p class="etiqueta">Construir</p>
+        <div class="botones cons">
+          <button id="b-camino" type="button" aria-pressed="false">Camino</button>
+          <button id="b-poblado" type="button" aria-pressed="false">Poblado</button>
+          <button id="b-ciudad" type="button" aria-pressed="false">Ciudad</button>
+        </div>
+        <button id="comprar-carta" type="button">Comprar carta</button>
+        <p class="piezas" id="info-mazo"></p>
+        <button id="comerciar" type="button" class="secundario">Comerciar con la banca</button>
+        <button id="proponer" type="button" class="secundario">Proponer comercio</button>
+        <p class="aviso" id="motivo"></p>
+      </div>
+      </div>
+    </section>
+
+    <div class="tablero-col">
+      <div class="tablero">
+        <svg id="svg" viewBox="-280 -250 560 500" role="img" aria-label="Tablero de Sapán con 19 hexágonos"></svg>
+        <svg id="svg2" viewBox="-280 -250 560 500"></svg>
+      </div>
+      <ul class="leyenda" id="leyenda"></ul>
+      <section class="panel registro" role="log" aria-label="Registro de eventos">
+        <h3>Registro de la partida</h3>
+        <ul id="lista-registro"></ul>
+      </section>
+      <div class="extra">
+        <button id="mezclar" type="button" class="secundario">Mezclar tablero</button>
+        <button id="nueva" type="button" class="secundario">Nueva partida</button>
+        <button id="guardar" type="button" class="secundario">Guardar / cargar partida</button>
+        <button id="modo-prueba" type="button" class="secundario" aria-pressed="false">Modo prueba: ver todo</button>
+      </div>
+    </div>
+
+    <div id="jugadores"></div>
+
+    <section class="panel" id="costos" aria-label="Costos de construcción"></section>
+  </div>
+
+<div id="modal" class="velo" role="dialog" aria-modal="true" aria-labelledby="modal-titulo" hidden>
+    <div class="tarjeta-vic modal-caja" id="modal-caja">
+      <h2 id="modal-titulo"></h2>
+      <div id="modal-cuerpo" class="filas-desc"></div>
+    </div>
+  </div>
+
+  <div id="pausa-red" class="velo" role="alertdialog" aria-modal="true" aria-labelledby="pausa-titulo" hidden>
+    <div class="tarjeta-vic">
+      <h2 id="pausa-titulo">Partida en pausa</h2>
+      <p id="pausa-texto"></p>
+      <button id="pausa-terminar" type="button" class="secundario" hidden>Terminar la partida</button>
+    </div>
+  </div>
+
+  <div id="victoria" class="velo" role="dialog" aria-modal="true" aria-labelledby="vic-titulo" hidden>
+    <div class="tarjeta-vic">
+      <h2 id="vic-titulo"></h2>
+      <p id="vic-texto"></p>
+      <button id="otra" type="button">Empezar de nuevo</button>
+    </div>
+  </div>
+
+<script id="motor">
+// ====================================================================================
+//  MOTOR DE SAPÁN
+//  No sabe nada de pantallas. Guarda el estado completo de la partida (un objeto que se
+//  puede pasar a texto JSON) y todas las jugadas pasan por aplicarAccion().
+//
+//    crearPartida({ jugadores: [{ nombre, bot }] })            -> estado nuevo
+//    aplicarAccion(estado, jugadorId, accion)                   -> { ok:true, estado, eventos } | { ok:false, error }
+//    vistaDelJugador(estado, jugadorId, { verTodo })            -> lo que ese jugador puede ver
+//    estadoAJSON(estado) / estadoDesdeJSON(texto)               -> guardar / cargar la partida
+//
+//  Acciones (accion.tipo):
+//    mezclarTablero | colocarPoblado {v} | colocarCamino {e} | tirar | construir {construccion, id}
+//    comprarCarta | jugarCarta {carta, recursos?, recurso?} | colocarCaminoGratis {e}
+//    descartar {recursos} | moverLadron {hex} | robar {de} | bancaCambio {dar, recibir}
+//    proponerComercio {oferta, pide, para} | responderComercio {respuesta} | contraoferta {oferta, pide}
+//    responderContra {respuesta} | cancelarComercio | terminarTurno
+//
+//  "eventos" son avisos para quien mira (por ejemplo, la carta que te tocó al robar).
+//  El motor nunca muestra el contenido del mazo ni las cartas de los demás en las vistas.
+// ====================================================================================
+
+// ---------- Datos y reglas fijas ----------
+const MATERIALES = ["madera", "ladrillo", "lana", "trigo", "piedra"];
+const COSTOS = { camino: { madera: 1, ladrillo: 1 }, poblado: { madera: 1, ladrillo: 1, lana: 1, trigo: 1 }, ciudad: { trigo: 2, piedra: 3 }, carta: { lana: 1, trigo: 1, piedra: 1 } };
+const LIMITES = { camino: 15, poblado: 5, ciudad: 4 };
+const CANTIDAD_HEX = { madera: 4, ladrillo: 3, lana: 4, trigo: 4, piedra: 3, desierto: 1 };
+const NUMEROS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];       // 18 fichas (el desierto no lleva)
+const PUERTOS_TIPOS = ["generico", "generico", "generico", "generico", "madera", "ladrillo", "lana", "trigo", "piedra"];
+const LIMITE_TURNOS_SOLO_BOTS = 500;      // para que una partida solo de bots no quede eterna
+const COLORES = [
+  { nombre: "Rojo", hex: "#e0443e" }, { nombre: "Azul", hex: "#3b82e6" },
+  { nombre: "Violeta", hex: "#a566e8" }, { nombre: "Naranja", hex: "#f08a24" }
+];
+const CARTAS = {
+  caballero: { nombre: "Caballero", n: 14, desc: "Mové el ladrón y robale una carta a un jugador, como con un 7 (sin descartes)." },
+  victoria: { nombre: "Punto de victoria", n: 5, desc: "Vale 1 punto. Es secreta, suma sola y no se juega." },
+  caminos: { nombre: "Construcción de caminos", n: 2, desc: "Construí 2 caminos gratis." },
+  invento: { nombre: "Invento", n: 2, desc: "Tomá 2 recursos cualesquiera de la banca." },
+  monopolio: { nombre: "Monopolio", n: 2, desc: "Elegí un recurso: todos los demás jugadores te entregan todas sus cartas de ese recurso." }
+};
+
+// ---------- Geometría del panal (fija, igual en todas las partidas) ----------
+const FILAS = [3, 4, 5, 4, 3];       // 3+4+5+4+3 = 19 hexágonos
+const S = 50;                         // radio del hexágono
+const W = Math.sqrt(3) * S;           // ancho de un hexágono
+const POSICIONES = [];
+FILAS.forEach((n, fila) => {
+  for (let i = 0; i < n; i++) POSICIONES.push({ x: (i - (n - 1) / 2) * W, y: (fila - 2) * 1.5 * S });
+});
+const VECINOS = POSICIONES.map((p, i) =>
+  POSICIONES.map((q, j) => j).filter(j => j !== i && Math.hypot(p.x - POSICIONES[j].x, p.y - POSICIONES[j].y) < W * 1.1));
+
+// Esquinas (VERTICES) y lados (ARISTAS) del tablero, compartidos entre hexágonos vecinos.
+const VERTICES = [], ARISTAS = [];
+const GEO = { vertices: VERTICES, aristas: ARISTAS };
+(function construirGrafo() {
+  const porClave = new Map(), aristaPorClave = new Map();
+  POSICIONES.forEach((p, i) => {
+    const ids = [];
+    for (let k = 0; k < 6; k++) {
+      const a = (Math.PI / 180) * (60 * k - 30);
+      const x = p.x + S * Math.cos(a), y = p.y + S * Math.sin(a);
+      const clave = Math.round(x * 10) + "," + Math.round(y * 10);
+      let id = porClave.get(clave);
+      if (id === undefined) {
+        id = VERTICES.length;
+        porClave.set(clave, id);
+        VERTICES.push({ id, x, y, hexes: [], aristas: [], vecinos: [] });
+      }
+      if (!VERTICES[id].hexes.includes(i)) VERTICES[id].hexes.push(i);
+      ids.push(id);
+    }
+    for (let k = 0; k < 6; k++) {
+      const a = ids[k], b = ids[(k + 1) % 6];
+      const clave = Math.min(a, b) + "-" + Math.max(a, b);
+      if (!aristaPorClave.has(clave)) {
+        const id = ARISTAS.length;
+        aristaPorClave.set(clave, id);
+        ARISTAS.push({ id, a, b });
+        VERTICES[a].aristas.push(id); VERTICES[b].aristas.push(id);
+        VERTICES[a].vecinos.push(b); VERTICES[b].vecinos.push(a);
+      }
+    }
+  });
+})();
+
+// Costa: lados que tocan un solo hexágono, ordenados dando la vuelta al tablero.
+const COSTA = [];
+(function ordenarCosta() {
+  ARISTAS.forEach(e => { e.hex = VERTICES[e.a].hexes.filter(h => VERTICES[e.b].hexes.includes(h)); });
+  const costa = ARISTAS.filter(e => e.hex.length === 1);
+  const porVertice = new Map();
+  costa.forEach(e => [e.a, e.b].forEach(v => { if (!porVertice.has(v)) porVertice.set(v, []); porVertice.get(v).push(e); }));
+  let e = costa[0], v = e.b;
+  do {
+    COSTA.push(e);
+    const sig = porVertice.get(v).find(x => x !== e);
+    v = sig.a === v ? sig.b : sig.a;
+    e = sig;
+  } while (e !== costa[0]);
+})();
+const PUERTOS_POS = [0, 3, 6, 10, 13, 16, 20, 23, 26].map(i => COSTA[i].id);
+
+// ---------- Reglas puras (sirven con el estado completo o con una vista) ----------
+const vacio = () => Object.fromEntries(MATERIALES.map(m => [m, 0]));
+const sumaCant = o => MATERIALES.reduce((t, m) => t + o[m], 0);
+const clonar = x => JSON.parse(JSON.stringify(x));
+function mezclar(lista) {
+  const a = lista.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function puroLugares(geo, poblados, caminos, k, tipo) {
+  const V = geo.vertices, A = geo.aristas;
+  const ocupados = new Set(poblados.map(p => p.v));
+  const usados = new Set(caminos.map(c => c.e));
+  const misCaminos = new Set(caminos.filter(c => c.j === k).map(c => c.e));
+  if (tipo === "camino") {
+    // Se conecta en una esquina con un edificio propio, o con un camino propio y NINGÚN edificio rival.
+    const edif = new Map(poblados.map(p => [p.v, p.j]));
+    const conecta = v => edif.get(v) === k || (!edif.has(v) && V[v].aristas.some(e => misCaminos.has(e)));
+    return A.filter(e => !usados.has(e.id) && (conecta(e.a) || conecta(e.b))).map(e => e.id);
+  }
+  if (tipo === "poblado") {
+    return V.filter(v => !ocupados.has(v.id) && v.vecinos.every(n => !ocupados.has(n)) &&
+      v.aristas.some(e => misCaminos.has(e))).map(v => v.id);
+  }
+  return poblados.filter(p => p.j === k && !p.ciudad).map(p => p.v);       // ciudad: sobre un poblado propio
+}
+
+function puroVerticesLibres(geo, poblados) {                                  // regla de distancia (colocación inicial)
+  const ocupados = new Set(poblados.map(p => p.v));
+  return geo.vertices.filter(v => !ocupados.has(v.id) && v.vecinos.every(n => !ocupados.has(n))).map(v => v.id);
+}
+
+function puroLargo(geo, poblados, caminos, k) {                               // camino continuo más largo
+  const A = geo.aristas;
+  const mios = caminos.filter(c => c.j === k).map(c => c.e);
+  if (!mios.length) return 0;
+  const rival = new Set(poblados.filter(p => p.j !== k).map(p => p.v));
+  const porV = new Map();
+  mios.forEach(e => [A[e].a, A[e].b].forEach(v => { if (!porV.has(v)) porV.set(v, []); porV.get(v).push(e); }));
+  const usados = new Set();
+  let mejor = 0;
+  function dfs(v, largo) {
+    if (largo > mejor) mejor = largo;
+    if (largo > 0 && rival.has(v)) return;
+    for (const e of porV.get(v) || []) {
+      if (usados.has(e)) continue;
+      usados.add(e);
+      dfs(A[e].a === v ? A[e].b : A[e].a, largo + 1);
+      usados.delete(e);
+    }
+  }
+  porV.forEach((_, v) => dfs(v, 0));
+  return mejor;
+}
+
+function piezasDe(d, k, tipo) {
+  if (tipo === "camino") return d.caminos.filter(c => c.j === k).length;
+  return d.poblados.filter(p => p.j === k && !!p.ciudad === (tipo === "ciudad")).length;
+}
+function lugaresDe(d, k, tipo) { return puroLugares(GEO, d.poblados, d.caminos, k, tipo); }
+function estadoConstruirDe(d, k, tipo) {                                     // "ok" | "recursos" | "limite" | "lugar"
+  const rec = d.jugadores[k].recursos;
+  if (!Object.entries(COSTOS[tipo]).every(([m, c]) => rec[m] >= c)) return "recursos";
+  if (piezasDe(d, k, tipo) >= LIMITES[tipo]) return "limite";
+  if (!lugaresDe(d, k, tipo).length) return "lugar";
+  return "ok";
+}
+function puertosDe(d, k) {
+  return d.puertos.filter(pt => d.poblados.some(p => p.j === k && (p.v === ARISTAS[pt.e].a || p.v === ARISTAS[pt.e].b)));
+}
+function tasaDe(d, k, m) {
+  const tipos = puertosDe(d, k).map(pt => pt.tipo);
+  if (tipos.includes(m)) return 2;
+  return tipos.includes("generico") ? 3 : 4;
+}
+function totalCartasDe(d, k) { return MATERIALES.reduce((t, m) => t + d.jugadores[k].recursos[m], 0); }
+function puntosSecretosDe(d, k) { return d.jugadores[k].cartas.filter(c => c.tipo === "victoria").length; }
+function puntosDe(d, k) {
+  return d.poblados.filter(p => p.j === k).reduce((t, p) => t + (p.ciudad ? 2 : 1), 0) +
+    (d.titulos.camino === k ? 2 : 0) + (d.titulos.ejercito === k ? 2 : 0) + puntosSecretosDe(d, k);
+}
+function puedeJugarCartaDe(d, k, tipo) {
+  if (tipo === "victoria" || d.fase !== "juego" || d.pendiente || d.jugoCarta || d.turno !== k) return false;
+  return d.jugadores[k].cartas.some(c => c.tipo === tipo && c.compra !== d.numTurno);
+}
+
+// ---------- Armado de una partida ----------
+function armarTablero() {
+  const tipos = [];
+  for (const clave in CANTIDAD_HEX) for (let i = 0; i < CANTIDAD_HEX[clave]; i++) tipos.push(clave);
+  const mezcla = mezclar(tipos);
+  const conNumero = mezcla.map((t, i) => i).filter(i => mezcla[i] !== "desierto");
+  let numeros;
+  for (let intento = 0; intento < 300; intento++) {                           // ningún 6 u 8 pegado a otro 6 u 8
+    const m = mezclar(NUMEROS);
+    numeros = new Array(19).fill(null);
+    conNumero.forEach((idx, k) => { numeros[idx] = m[k]; });
+    const rojo = n => n === 6 || n === 8;
+    if (!numeros.some((n, i) => rojo(n) && VECINOS[i].some(v => rojo(numeros[v])))) break;
+  }
+  return mezcla.map((tipo, i) => ({ tipo, numero: numeros[i] }));
+}
+function asignarPuertos() {
+  const tipos = mezclar(PUERTOS_TIPOS);
+  return PUERTOS_POS.map((e, i) => ({ e, tipo: tipos[i] }));
+}
+function armarMazo() {
+  const m = [];
+  Object.entries(CARTAS).forEach(([t, c]) => { for (let i = 0; i < c.n; i++) m.push(t); });
+  return mezclar(m);
+}
+
+function crearPartida(config) {
+  const n = config.jugadores.length;
+  const e = {
+    version: 1, fase: "inicial", turno: 0, numTurno: 0, haTirado: false, jugoCarta: false,
+    dados: null, sumaActual: null, resultado: null, aviso: "",
+    jugadores: config.jugadores.map((j, i) => ({
+      nombre: j.nombre, bot: !!j.bot, color: COLORES[i].hex, recursos: vacio(), cartas: [], caballeros: 0
+    })),
+    tablero: armarTablero(), puertos: asignarPuertos(), ladron: -1,
+    poblados: [], caminos: [], titulos: { camino: null, ejercito: null }, largos: new Array(n).fill(0),
+    mazo: armarMazo(),
+    orden: Array.from({ length: n }, (_, i) => i).concat(Array.from({ length: n }, (_, i) => n - 1 - i)),
+    paso: 0, subfase: "poblado", ultimoPoblado: null,
+    pendiente: null, descartes: [], caminosGratis: 0, victimas: [], comercio: null,
+    registro: [], ganador: null
+  };
+  e.turno = e.orden[0];
+  e.ladron = e.tablero.findIndex(t => t.tipo === "desierto");
+  logE(e, "Empieza la partida: " + e.jugadores.map(j => j.nombre).join(", ") + ".");
+  return e;
+}
+
+// ---------- Ayudas internas del motor ----------
+function logE(e, texto, k) {
+  e.registro.unshift({ texto, j: typeof k === "number" ? k : null });
+  if (e.registro.length > 80) e.registro.pop();
+}
+const textoCantE = o => MATERIALES.filter(m => o[m] > 0).map(m => o[m] + " " + m).join(" + ");
+const alcanzaE = (e, k, o) => MATERIALES.every(m => e.jugadores[k].recursos[m] >= (o[m] || 0));
+const nombreE = (e, k) => e.jugadores[k].nombre;
+const todosBotsE = e => e.jugadores.every(j => j.bot);
+
+function actualizarTitulos(e) {
+  e.largos = e.jugadores.map((j, k) => puroLargo(GEO, e.poblados, e.caminos, k));
+  const max = Math.max(...e.largos), h = e.titulos.camino;
+  let nuevo = null;
+  if (max >= 5) {
+    if (h !== null && e.largos[h] === max) nuevo = h;
+    else { const lid = e.largos.map((l, k) => k).filter(k => e.largos[k] === max); nuevo = lid.length === 1 ? lid[0] : null; }
+  }
+  if (nuevo === h) return;
+  e.titulos.camino = nuevo;
+  if (nuevo !== null) logE(e, nombreE(e, nuevo) + " tiene el Camino más largo (" + e.largos[nuevo] + " tramos): +2 puntos.", nuevo);
+  else logE(e, "Nadie tiene el Camino más largo por ahora.");
+}
+
+function terminarPartidaE(e) {
+  e.fase = "fin";
+  e.ganador = e.turno;
+  logE(e, "¡" + nombreE(e, e.turno) + " ganó con " + puntosDe(e, e.turno) + " puntos!", e.turno);
+}
+function revisarVictoriaE(e) {                                                 // gana quien llega a 10 puntos EN SU turno
+  if (e.fase === "juego" && puntosDe(e, e.turno) >= 10) terminarPartidaE(e);
+}
+function cortarPorLimiteE(e) {
+  let mejor = 0;
+  e.jugadores.forEach((j, k) => { if (puntosDe(e, k) > puntosDe(e, mejor)) mejor = k; });
+  logE(e, "Se llegó al límite de " + LIMITE_TURNOS_SOLO_BOTS + " turnos en una partida solo de bots: gana quien tiene más puntos.");
+  e.turno = mejor;
+  terminarPartidaE(e);
+}
+
+function gastarCartaE(e, tipo) {
+  const j = e.jugadores[e.turno];
+  j.cartas.splice(j.cartas.findIndex(c => c.tipo === tipo && c.compra !== e.numTurno), 1);
+  e.jugoCarta = true;
+}
+
+function repartirE(e, suma) {                                                  // 1 recurso por poblado, 2 por ciudad; el ladrón bloquea
+  const pagos = e.jugadores.map(() => ({}));
+  let bloqueado = null;
+  e.tablero.forEach((t, i) => {
+    if (t.numero !== suma) return;
+    const aqui = e.poblados.filter(p => VERTICES[p.v].hexes.includes(i));
+    if (i === e.ladron) { if (aqui.length) bloqueado = t; return; }
+    aqui.forEach(p => { pagos[p.j][t.tipo] = (pagos[p.j][t.tipo] || 0) + (p.ciudad ? 2 : 1); });
+  });
+  const partes = [];
+  pagos.forEach((pg, k) => {
+    const items = Object.entries(pg);
+    if (!items.length) return;
+    items.forEach(([m, c]) => { e.jugadores[k].recursos[m] += c; });
+    const texto = nombreE(e, k) + " recibe " + items.map(([m, c]) => c + " " + m).join(", ");
+    partes.push(texto);
+    logE(e, texto + ".", k);
+  });
+  return { partes, bloqueado };
+}
+
+function iniciarDescartesE(e) {
+  const n = e.jugadores.length;
+  e.descartes = [];
+  for (let d = 0; d < n; d++) {
+    const k = (e.turno + d) % n, tot = totalCartasDe(e, k);
+    if (tot > 7) e.descartes.push({ k, deben: Math.floor(tot / 2) });
+  }
+  logE(e, "Salió 7: " + (e.descartes.length ? "descartan cartas " + e.descartes.map(d => nombreE(e, d.k)).join(", ") : "nadie tiene más de 7 cartas") + ".");
+  e.pendiente = e.descartes.length ? "descartar" : "ladron";
+}
+
+function validarOferta(e, k, oferta, pide) {
+  const ok = o => o && MATERIALES.every(m => Number.isInteger(o[m]) && o[m] >= 0 && o[m] <= 99);
+  if (!ok(oferta) || !ok(pide)) return "Las cantidades no son válidas.";
+  if (sumaCant(oferta) === 0) return "Tenés que ofrecer algo.";
+  if (sumaCant(pide) === 0) return "No se puede regalar: tenés que pedir algo.";
+  if (MATERIALES.some(m => oferta[m] > 0 && pide[m] > 0)) return "No se puede ofrecer y pedir el mismo recurso.";
+  if (!alcanzaE(e, k, oferta)) return "No tenés los recursos que ofrecés.";
+  return null;
+}
+
+function cerrarOfertaSiTodosRespondieron(e) {
+  if (e.comercio && Object.values(e.comercio.estado).every(x => x !== "pendiente")) {
+    logE(e, "Nadie aceptó la oferta de " + nombreE(e, e.comercio.de) + ".");
+    e.comercio = null; e.pendiente = null;
+  }
+}
+
+function intercambiarE(e, da, recibe, dado, pedido) {                          // "da" entrega "dado" y recibe "pedido" de "recibe"
+  const a = e.jugadores[da], b = e.jugadores[recibe];
+  MATERIALES.forEach(m => { a.recursos[m] += pedido[m] - dado[m]; b.recursos[m] += dado[m] - pedido[m]; });
+  logE(e, a.nombre + " y " + b.nombre + " hicieron un comercio: " + a.nombre + " dio " + textoCantE(dado) + " y " + b.nombre + " dio " + textoCantE(pedido) + ".", e.turno);
+  e.comercio = null; e.pendiente = null;
+}
+
+// ---------- Las acciones ----------
+// Cada una devuelve null si salió bien o un texto con el motivo si no se puede.
+const ACCIONES = {
+  mezclarTablero(e, id) {
+    if (e.fase !== "inicial" || e.poblados.length || e.caminos.length) return "Ya no se puede mezclar el tablero.";
+    if (id !== e.turno) return "No es tu turno.";
+    e.tablero = armarTablero();
+    e.puertos = asignarPuertos();
+    e.ladron = e.tablero.findIndex(t => t.tipo === "desierto");
+    return null;
+  },
+
+  colocarPoblado(e, id, a) {
+    if (e.fase !== "inicial" || e.subfase !== "poblado") return "Ahora no se puede colocar un poblado.";
+    if (id !== e.turno) return "No es tu turno.";
+    if (!puroVerticesLibres(GEO, e.poblados).includes(a.v)) return "Esa esquina no es válida (tiene que estar a 2 lados de cualquier poblado).";
+    const j = e.jugadores[id];
+    e.poblados.push({ v: a.v, j: id, ciudad: false });
+    e.ultimoPoblado = a.v;
+    e.subfase = "camino";
+    let aviso = j.nombre + " puso un poblado.";
+    if (e.paso >= e.jugadores.length) {                                     // segundo poblado: 1 recurso por hexágono (menos desierto)
+      const ganados = [];
+      VERTICES[a.v].hexes.forEach(i => {
+        const tipo = e.tablero[i].tipo;
+        if (tipo !== "desierto") { j.recursos[tipo]++; ganados.push(tipo); }
+      });
+      aviso += ganados.length ? " Recibe: " + ganados.join(", ") + "." : " Ese poblado no toca ningún recurso.";
+    }
+    e.aviso = aviso;
+    logE(e, aviso, id);
+    return null;
+  },
+
+  colocarCamino(e, id, a) {
+    if (e.fase !== "inicial" || e.subfase !== "camino") return "Ahora no se puede colocar un camino.";
+    if (id !== e.turno) return "No es tu turno.";
+    const usados = new Set(e.caminos.map(c => c.e));
+    if (!VERTICES[e.ultimoPoblado].aristas.some(x => x === a.e && !usados.has(x))) return "El camino tiene que estar pegado a tu poblado.";
+    e.caminos.push({ e: a.e, j: id });
+    logE(e, nombreE(e, id) + " puso un camino.", id);
+    e.ultimoPoblado = null;
+    e.subfase = "poblado";
+    e.paso++;
+    if (e.paso >= e.orden.length) {
+      e.fase = "juego"; e.turno = 0; e.haTirado = false; e.sumaActual = null;
+      e.aviso = "¡Terminó la colocación inicial! Empieza el juego normal.";
+      logE(e, "Terminó la colocación inicial. Empieza " + nombreE(e, 0) + ".", 0);
+    } else e.turno = e.orden[e.paso];
+    return null;
+  },
+
+  tirar(e, id) {
+    if (e.fase !== "juego") return "Todavía no empezó el juego normal.";
+    if (id !== e.turno) return "No es tu turno.";
+    if (e.pendiente) return "Hay algo pendiente por resolver.";
+    if (e.haTirado) return "Ya tiraste los dados en este turno.";
+    const a = 1 + Math.floor(Math.random() * 6), b = 1 + Math.floor(Math.random() * 6), s = a + b;
+    e.haTirado = true; e.dados = [a, b]; e.sumaActual = s;
+    logE(e, nombreE(e, id) + " tiró " + s + " (" + a + " + " + b + ").", id);
+    let extra;
+    if (s === 7) { extra = "Salió 7: se descartan cartas y se mueve el ladrón."; iniciarDescartesE(e); }
+    else {
+      const cuantos = e.tablero.filter(t => t.numero === s).length;
+      if (!cuantos) extra = "No hay hexágonos con ese número.";
+      else {
+        const { partes, bloqueado } = repartirE(e, s);
+        extra = partes.length ? partes.join(". ") + "." : (bloqueado ? "Nadie recibe recursos." : "Hexágonos resaltados: " + cuantos + ", pero nadie tiene poblados ahí.");
+        if (bloqueado) {
+          const av = "El ladrón bloquea el hexágono de " + bloqueado.tipo + " (" + s + ").";
+          extra += " " + av;
+          logE(e, av);
+        }
+      }
+    }
+    e.resultado = nombreE(e, id) + " sacó " + a + " + " + b + " = " + s + ". " + extra;
+    return null;
+  },
+
+  construir(e, id, a) {
+    const tipo = a.construccion;
+    if (!["camino", "poblado", "ciudad"].includes(tipo)) return "No se puede construir eso.";
+    if (e.fase !== "juego" || id !== e.turno || !e.haTirado || e.pendiente) return "Ahora no se puede construir.";
+    const est = estadoConstruirDe(e, id, tipo);
+    if (est === "recursos") return "No te alcanzan los recursos.";
+    if (est === "limite") return "Ya usaste todas tus piezas de ese tipo.";
+    if (!lugaresDe(e, id, tipo).includes(a.id)) return "Ese lugar no es válido.";
+    const j = e.jugadores[id];
+    Object.entries(COSTOS[tipo]).forEach(([m, c]) => { j.recursos[m] -= c; });
+    if (tipo === "camino") e.caminos.push({ e: a.id, j: id });
+    else if (tipo === "poblado") e.poblados.push({ v: a.id, j: id, ciudad: false });
+    else e.poblados.find(p => p.v === a.id).ciudad = true;
+    const msg = j.nombre + " construyó " + (tipo === "ciudad" ? "una " : "un ") + tipo + ".";
+    e.aviso = msg;
+    logE(e, msg, id);
+    return null;
+  },
+
+  comprarCarta(e, id, a, eventos) {
+    if (e.fase !== "juego" || id !== e.turno || !e.haTirado || e.pendiente) return "Ahora no se puede comprar una carta.";
+    if (!e.mazo.length) return "Ya no quedan cartas de desarrollo.";
+    if (!alcanzaE(e, id, COSTOS.carta)) return "No te alcanzan los recursos.";
+    const j = e.jugadores[id];
+    Object.entries(COSTOS.carta).forEach(([m, c]) => { j.recursos[m] -= c; });
+    const tipo = e.mazo.pop();
+    j.cartas.push({ tipo, compra: e.numTurno });
+    logE(e, j.nombre + " compró una carta de desarrollo.", id);
+    eventos.push({ para: id, tipo: "cartaComprada", carta: tipo });
+    return null;
+  },
+
+  jugarCarta(e, id, a) {
+    const tipo = a.carta;
+    if (!puedeJugarCartaDe(e, id, tipo)) return "No podés jugar esa carta ahora.";
+    const j = e.jugadores[id];
+    if (tipo === "caballero") {
+      gastarCartaE(e, tipo);
+      j.caballeros++;
+      logE(e, j.nombre + " jugó un Caballero.", id);
+      if (j.caballeros >= 3 && (e.titulos.ejercito === null || j.caballeros > e.jugadores[e.titulos.ejercito].caballeros)) {
+        e.titulos.ejercito = id;
+        logE(e, j.nombre + " tiene el Ejército más grande (" + j.caballeros + " caballeros): +2 puntos.", id);
+      }
+      e.pendiente = "ladron";
+    } else if (tipo === "caminos") {
+      gastarCartaE(e, tipo);
+      logE(e, j.nombre + " jugó Construcción de caminos.", id);
+      e.caminosGratis = 2;
+      e.pendiente = "caminos";
+      if (!lugaresDe(e, id, "camino").length || piezasDe(e, id, "camino") >= LIMITES.camino) {
+        e.caminosGratis = 0; e.pendiente = null;
+        logE(e, "No hay lugar para construir caminos.");
+      }
+    } else if (tipo === "invento") {
+      const r = a.recursos;
+      if (!r || !MATERIALES.every(m => Number.isInteger(r[m]) && r[m] >= 0) || sumaCant(r) !== 2) return "Elegí exactamente 2 recursos.";
+      gastarCartaE(e, tipo);
+      const tom = [];
+      MATERIALES.forEach(m => { j.recursos[m] += r[m]; for (let q = 0; q < r[m]; q++) tom.push(m); });
+      logE(e, j.nombre + " jugó Invento y tomó " + tom.join(" y ") + " de la banca.", id);
+    } else if (tipo === "monopolio") {
+      if (!MATERIALES.includes(a.recurso)) return "Elegí un recurso.";
+      gastarCartaE(e, tipo);
+      let total = 0;
+      e.jugadores.forEach((o, k) => { if (k !== id) { total += o.recursos[a.recurso]; o.recursos[a.recurso] = 0; } });
+      j.recursos[a.recurso] += total;
+      logE(e, j.nombre + " jugó Monopolio de " + a.recurso + " y recibió " + total + ".", id);
+    } else return "Esa carta no se juega.";
+    return null;
+  },
+
+  colocarCaminoGratis(e, id, a) {
+    if (e.pendiente !== "caminos" || id !== e.turno) return "Ahora no se pueden colocar caminos gratis.";
+    if (!lugaresDe(e, id, "camino").includes(a.e) || piezasDe(e, id, "camino") >= LIMITES.camino) return "Ese lugar no es válido.";
+    e.caminos.push({ e: a.e, j: id });
+    e.caminosGratis--;
+    logE(e, nombreE(e, id) + " construyó un camino gratis.", id);
+    if (e.caminosGratis <= 0 || !lugaresDe(e, id, "camino").length || piezasDe(e, id, "camino") >= LIMITES.camino) { e.caminosGratis = 0; e.pendiente = null; }
+    return null;
+  },
+
+  descartar(e, id, a) {
+    const d = e.descartes[0];
+    if (e.pendiente !== "descartar" || !d || d.k !== id) return "No te toca descartar.";
+    const r = a.recursos, rec = e.jugadores[id].recursos;
+    if (!r || !MATERIALES.every(m => Number.isInteger(r[m]) && r[m] >= 0 && r[m] <= rec[m]) || sumaCant(r) !== d.deben) return "Tenés que descartar exactamente " + d.deben + " cartas que tengas.";
+    MATERIALES.forEach(m => { rec[m] -= r[m]; });
+    logE(e, nombreE(e, id) + " descartó " + d.deben + " cartas.", id);
+    e.descartes.shift();
+    if (!e.descartes.length) e.pendiente = "ladron";
+    return null;
+  },
+
+  moverLadron(e, id, a) {
+    if (e.pendiente !== "ladron" || id !== e.turno) return "Ahora no se puede mover el ladrón.";
+    if (!Number.isInteger(a.hex) || a.hex < 0 || a.hex >= e.tablero.length || a.hex === e.ladron) return "Elegí otro hexágono.";
+    e.ladron = a.hex;
+    const t = e.tablero[a.hex];
+    logE(e, nombreE(e, id) + " movió el ladrón al hexágono de " + t.tipo + (t.numero ? " (" + t.numero + ")." : "."), id);
+    const victimas = [];
+    e.poblados.forEach(p => { if (p.j !== id && VERTICES[p.v].hexes.includes(a.hex) && !victimas.includes(p.j)) victimas.push(p.j); });
+    const conCartas = victimas.filter(k => totalCartasDe(e, k) > 0);
+    if (victimas.length && !conCartas.length) logE(e, "Nadie tiene cartas para robar en ese hexágono.");
+    if (!conCartas.length) { e.pendiente = null; e.victimas = []; }
+    else { e.pendiente = "robar"; e.victimas = conCartas; }
+    return null;
+  },
+
+  robar(e, id, a, eventos) {
+    if (e.pendiente !== "robar" || id !== e.turno || !e.victimas.includes(a.de)) return "Ahora no se puede robar a ese jugador.";
+    const mazoR = [];
+    MATERIALES.forEach(m => { for (let c = 0; c < e.jugadores[a.de].recursos[m]; c++) mazoR.push(m); });
+    const m = mazoR[Math.floor(Math.random() * mazoR.length)];
+    e.jugadores[a.de].recursos[m]--;
+    e.jugadores[id].recursos[m]++;
+    logE(e, nombreE(e, id) + " le robó 1 carta a " + nombreE(e, a.de) + ".", id);
+    eventos.push({ para: id, tipo: "cartaRobada", recurso: m, de: a.de });
+    e.pendiente = null; e.victimas = [];
+    return null;
+  },
+
+  bancaCambio(e, id, a) {
+    if (e.fase !== "juego" || id !== e.turno || !e.haTirado || e.pendiente) return "Ahora no se puede comerciar con la banca.";
+    if (!MATERIALES.includes(a.dar) || !MATERIALES.includes(a.recibir) || a.dar === a.recibir) return "Elegí dos recursos distintos.";
+    const t = tasaDe(e, id, a.dar), j = e.jugadores[id];
+    if (j.recursos[a.dar] < t) return "No te alcanzan las cartas para cambiar (" + t + ":1).";
+    j.recursos[a.dar] -= t;
+    j.recursos[a.recibir] += 1;
+    logE(e, j.nombre + " cambió " + t + " " + a.dar + " por 1 " + a.recibir + " con la banca.", id);
+    return null;
+  },
+
+  proponerComercio(e, id, a) {
+    if (e.fase !== "juego" || id !== e.turno || !e.haTirado || e.pendiente) return "Ahora no se puede proponer un comercio.";
+    const err = validarOferta(e, id, a.oferta, a.pide);
+    if (err) return err;
+    const otros = e.jugadores.map((x, k) => k).filter(k => k !== id);
+    if (a.para !== "todos" && !otros.includes(a.para)) return "Elegí a quién se lo proponés.";
+    const para = a.para === "todos" ? otros : [a.para];
+    e.comercio = { de: id, oferta: clonar(a.oferta), pide: clonar(a.pide), para, estado: Object.fromEntries(para.map(k => [k, "pendiente"])), contra: null };
+    e.pendiente = "comercio";
+    logE(e, nombreE(e, id) + " propone: da " + textoCantE(a.oferta) + " por " + textoCantE(a.pide) + (a.para === "todos" ? " (a todos)." : " (a " + nombreE(e, a.para) + ")."), id);
+    return null;
+  },
+
+  responderComercio(e, id, a) {
+    const c = e.comercio;
+    if (e.pendiente !== "comercio" || !c || !c.para.includes(id) || c.estado[id] !== "pendiente") return "No tenés una oferta para responder.";
+    if (a.respuesta === "aceptar") {
+      if (!alcanzaE(e, id, c.pide) || !alcanzaE(e, c.de, c.oferta)) return "No se puede aceptar: faltan recursos.";
+      intercambiarE(e, c.de, id, c.oferta, c.pide);
+    } else if (a.respuesta === "rechazar") {
+      c.estado[id] = "rechazó";
+      logE(e, nombreE(e, id) + " rechazó la oferta de " + nombreE(e, c.de) + ".", id);
+      cerrarOfertaSiTodosRespondieron(e);
+    } else return "Respuesta inválida.";
+    return null;
+  },
+
+  contraoferta(e, id, a) {
+    const c = e.comercio;
+    if (e.pendiente !== "comercio" || !c || !c.para.includes(id) || c.estado[id] !== "pendiente" || c.contra) return "No podés contraofertar ahora.";
+    const err = validarOferta(e, id, a.oferta, a.pide);
+    if (err) return err;
+    c.contra = { de: id, oferta: clonar(a.oferta), pide: clonar(a.pide) };
+    logE(e, nombreE(e, id) + " contraofertó a " + nombreE(e, c.de) + ": da " + textoCantE(a.oferta) + " por " + textoCantE(a.pide) + ".", id);
+    return null;
+  },
+
+  responderContra(e, id, a) {
+    const c = e.comercio;
+    if (e.pendiente !== "comercio" || !c || !c.contra || id !== c.de) return "No hay una contraoferta para responder.";
+    const ct = c.contra;
+    if (a.respuesta === "aceptar") {
+      if (!alcanzaE(e, c.de, ct.pide) || !alcanzaE(e, ct.de, ct.oferta)) return "No se puede aceptar: faltan recursos.";
+      intercambiarE(e, ct.de, c.de, ct.oferta, ct.pide);
+    } else if (a.respuesta === "rechazar") {
+      c.estado[ct.de] = "contraoferta rechazada";
+      c.contra = null;
+      logE(e, nombreE(e, c.de) + " rechazó la contraoferta de " + nombreE(e, ct.de) + ".", c.de);
+      cerrarOfertaSiTodosRespondieron(e);
+    } else return "Respuesta inválida.";
+    return null;
+  },
+
+  cancelarComercio(e, id) {
+    const c = e.comercio;
+    if (e.pendiente !== "comercio" || !c || id !== c.de) return "No tenés una oferta para cancelar.";
+    logE(e, nombreE(e, id) + " canceló su oferta.", id);
+    e.comercio = null; e.pendiente = null;
+    return null;
+  },
+
+  terminarTurno(e, id) {
+    if (e.fase !== "juego" || id !== e.turno || !e.haTirado || e.pendiente) return "Ahora no se puede terminar el turno.";
+    if (todosBotsE(e) && e.numTurno + 1 >= LIMITE_TURNOS_SOLO_BOTS) { cortarPorLimiteE(e); return null; }
+    e.turno = (e.turno + 1) % e.jugadores.length;
+    e.numTurno++; e.jugoCarta = false; e.caminosGratis = 0;
+    e.haTirado = false; e.sumaActual = null; e.dados = null; e.resultado = null;
+    logE(e, "Turno de " + nombreE(e, e.turno) + ".", e.turno);
+    return null;
+  }
+};
+
+// Aplica una jugada. No modifica el estado que recibe: devuelve uno nuevo, o un error.
+function aplicarAccion(estado, jugadorId, accion) {
+  if (!estado || !accion || typeof accion.tipo !== "string") return { ok: false, error: "Acción inválida." };
+  if (estado.fase === "fin") return { ok: false, error: "La partida ya terminó." };
+  if (!Number.isInteger(jugadorId) || !estado.jugadores[jugadorId]) return { ok: false, error: "Jugador inválido." };
+  const f = Object.prototype.hasOwnProperty.call(ACCIONES, accion.tipo) ? ACCIONES[accion.tipo] : null;
+  if (!f) return { ok: false, error: "Acción desconocida: " + accion.tipo };
+  const e = clonar(estado), eventos = [];
+  e.aviso = "";
+  const error = f(e, jugadorId, accion, eventos);
+  if (error) return { ok: false, error };
+  actualizarTitulos(e);
+  revisarVictoriaE(e);
+  return { ok: true, estado: e, eventos };
+}
+
+// ---------- Lo que cada jugador puede ver ----------
+// Del propio jugador: recursos y cartas completos. De los demás: solo la cantidad de cartas de recurso, la cantidad de
+// cartas de desarrollo y los puntos visibles (sin contar los Puntos de victoria sin revelar). Nunca el contenido del mazo.
+// Con { verTodo: true } (modo prueba) o al terminar la partida se ve todo.
+function vistaDelJugador(e, jugadorId, opciones) {
+  const todo = !!(opciones && opciones.verTodo) || e.fase === "fin";
+  const v = {
+    yo: Number.isInteger(jugadorId) ? jugadorId : null, k: Number.isInteger(jugadorId) ? jugadorId : null, verTodo: todo,
+    n: e.jugadores.length, fase: e.fase, turno: e.turno, numTurno: e.numTurno, haTirado: e.haTirado, jugoCarta: e.jugoCarta,
+    dados: e.dados && e.dados.slice(), sumaActual: e.sumaActual, resultado: e.resultado, aviso: e.aviso,
+    tablero: e.tablero.map(t => ({ tipo: t.tipo, numero: t.numero })), puertos: e.puertos.map(p => ({ e: p.e, tipo: p.tipo })), ladron: e.ladron,
+    poblados: e.poblados.map(p => ({ v: p.v, j: p.j, ciudad: !!p.ciudad })), caminos: e.caminos.map(c => ({ e: c.e, j: c.j })),
+    titulos: { camino: e.titulos.camino, ejercito: e.titulos.ejercito }, largos: e.largos.slice(),
+    mazoRestante: e.mazo.length,
+    orden: e.orden.slice(), paso: e.paso, subfase: e.subfase, ultimoPoblado: e.ultimoPoblado,
+    pendiente: e.pendiente, descartes: e.descartes.map(d => ({ k: d.k, deben: d.deben })), caminosGratis: e.caminosGratis, victimas: e.victimas.slice(),
+    comercio: e.comercio && clonar(e.comercio), ganador: e.ganador,
+    registro: e.registro.map(r => ({ texto: r.texto, j: r.j })),
+    jugadores: e.jugadores.map((j, i) => {
+      const mio = i === jugadorId || todo;
+      return {
+        nombre: j.nombre, color: j.color, bot: !!j.bot, caballeros: j.caballeros,
+        numCartasRecurso: totalCartasDe(e, i), numCartasDesarrollo: j.cartas.length,
+        puntosVisibles: puntosDe(e, i) - puntosSecretosDe(e, i),
+        recursos: mio ? Object.assign({}, j.recursos) : null,
+        cartas: mio ? j.cartas.map(c => ({ tipo: c.tipo, compra: c.compra })) : null,
+        puntos: mio ? puntosDe(e, i) : null, secretos: mio ? puntosSecretosDe(e, i) : null
+      };
+    })
+  };
+  return v;
+}
+
+// ---------- Guardar y cargar ----------
+function estadoAJSON(e) { return JSON.stringify(e); }
+function estadoDesdeJSON(texto) {
+  let e;
+  try { e = JSON.parse(texto); } catch (x) { throw new Error("El texto no es un JSON válido."); }
+  const ok = e && e.version === 1 && Array.isArray(e.jugadores) && e.jugadores.length >= 2 && e.jugadores.length <= 4 &&
+    Array.isArray(e.tablero) && e.tablero.length === 19 && Array.isArray(e.poblados) && Array.isArray(e.caminos) &&
+    Array.isArray(e.mazo) && Array.isArray(e.registro) && e.jugadores.every(j => j && j.recursos && Array.isArray(j.cartas)) &&
+    ["inicial", "juego", "fin"].includes(e.fase);
+  if (!ok) throw new Error("El texto no parece una partida de Sapán.");
+  return e;
+}
+</script>
+
+<script id="cerebro-bots">
+// ====================================================================================
+//  CEREBRO DE LOS BOTS
+//  Esta parte NO toca la pantalla ni las variables de la partida: todas las funciones
+//  reciben datos y devuelven datos, así que se puede copiar tal cual al modo online.
+//  Usa las reglas del motor (MATERIALES, COSTOS, LIMITES, puroLugares, puroLargo, puroVerticesLibres).
+//  Recibe la VISTA del bot (vistaDelJugador + geo): solo ve lo que puede ver un jugador, sin trampa.
+//
+//  "est" es una foto de la partida desde el punto de vista del bot k:
+//    { k, n, turno, fase, haTirado, jugoCarta, numTurno, ladron, mazoRestante,
+//      geo: { vertices, aristas }, tablero: [{ tipo, numero }], puertos: [{ e, tipo }],
+//      poblados: [{ v, j, ciudad }], caminos: [{ e, j }], titulos, largos,
+//      jugadores: [{ nombre, bot, caballeros, numCartasRecurso, numCartasDesarrollo,
+//                    puntosVisibles, recursos (solo el propio), cartas (solo las propias) }] }
+//  Cada función de decisión devuelve la acción elegida; quien juega la ejecuta.
+//  nivel: "facil" (mucho azar) o "normal" (usa las estrategias).
+// ====================================================================================
+const BOT_IDEAL = { madera: 2, ladrillo: 2, lana: 1, trigo: 3, piedra: 3 };   // cuántas cartas le conviene tener de cada recurso
+const BOT_UMBRAL_CAMINO = 10;                                                   // un camino tiene que valer al menos esto
+
+// ---------- Ayudas ----------
+const botPips = n => (n ? 6 - Math.abs(7 - n) : 0);                           // 6 y 8 valen 5; 5 y 9, 4; ... 2 y 12, 1
+const botAlcanza = (rec, costo) => MATERIALES.every(m => rec[m] >= (costo[m] || 0));
+const botTotal = rec => MATERIALES.reduce((t, m) => t + rec[m], 0);
+
+function botPiezas(est, k, tipo) {
+  if (tipo === "camino") return est.caminos.filter(c => c.j === k).length;
+  return est.poblados.filter(p => p.j === k && !!p.ciudad === (tipo === "ciudad")).length;
+}
+
+function botTasa(est, k, m) {
+  const A = est.geo.aristas;
+  const mios = new Set(est.poblados.filter(p => p.j === k).map(p => p.v));
+  const tipos = est.puertos.filter(pt => mios.has(A[pt.e].a) || mios.has(A[pt.e].b)).map(pt => pt.tipo);
+  return tipos.includes(m) ? 2 : tipos.includes("generico") ? 3 : 4;
+}
+
+function botProduce(est, k) {                                                  // recursos que ya produce
+  const s = new Set();
+  est.poblados.filter(p => p.j === k).forEach(p => est.geo.vertices[p.v].hexes.forEach(h => {
+    if (est.tablero[h].tipo !== "desierto") s.add(est.tablero[h].tipo);
+  }));
+  return s;
+}
+
+function botProduccion(est, v) {                                               // suma de probabilidades de la esquina
+  return est.geo.vertices[v].hexes.reduce((t, h) => t + botPips(est.tablero[h].numero), 0);
+}
+
+// Elige el mejor candidato. En "facil" se mezcla mucho azar; en "normal" solo desempata.
+function botElegir(candidatos, puntaje, nivel) {
+  if (!candidatos.length) return null;
+  if (nivel === "facil" && Math.random() < 0.35) return candidatos[Math.floor(Math.random() * candidatos.length)];
+  let mejor = null, mejorP = -Infinity;
+  candidatos.forEach(c => {
+    const p = puntaje(c) + Math.random() * (nivel === "facil" ? 14 : 0.4);
+    if (p > mejorP) { mejor = c; mejorP = p; }
+  });
+  return mejor;
+}
+
+// ---------- Colocación inicial ----------
+// etapa 1 = primer poblado (prefiere madera y ladrillo); etapa 2 = segundo (completa lo que le falta); 0 = durante la partida
+function botPuntuarVertice(est, k, v, etapa) {
+  const produce = botProduce(est, k);
+  const tipos = new Set();
+  let base = 0, malos = 0, soloMalos = true;
+  est.geo.vertices[v].hexes.forEach(h => {
+    const t = est.tablero[h], p = botPips(t.numero);
+    if (t.tipo === "desierto") { malos++; return; }
+    let peso = 1;
+    if (etapa === 1 && (t.tipo === "madera" || t.tipo === "ladrillo")) peso = 1.35;
+    if (etapa === 2 && !produce.has(t.tipo)) peso = 1.3;
+    base += p * peso;
+    if (p <= 1) malos++;                                                     // 2 y 12
+    if (p > 2) soloMalos = false;
+    tipos.add(t.tipo);
+  });
+  let puntaje = base + 2.5 * tipos.size - 2.5 * malos - (soloMalos ? 6 : 0);
+  est.puertos.forEach(pt => {
+    const e = est.geo.aristas[pt.e];
+    if (e.a === v || e.b === v) puntaje += pt.tipo === "generico" ? 1 : (tipos.has(pt.tipo) ? 3 : 0.5);
+  });
+  return puntaje;
+}
+
+function botElegirPoblado(est, k, nivel) {
+  const etapa = est.poblados.some(p => p.j === k) ? 2 : 1;
+  return botElegir(puroVerticesLibres(est.geo, est.poblados), v => botPuntuarVertice(est, k, v, etapa), nivel);
+}
+
+// El camino inicial apunta hacia la mejor esquina libre cercana al poblado recién puesto ("desde").
+function botElegirCamino(est, k, nivel, desde) {
+  const V = est.geo.vertices, A = est.geo.aristas;
+  const usados = new Set(est.caminos.map(c => c.e));
+  const ocupados = new Set(est.poblados.map(p => p.v));
+  ocupados.add(desde);
+  const libre = u => !ocupados.has(u) && V[u].vecinos.every(x => !ocupados.has(x));
+  const candidatos = V[desde].aristas.filter(e => !usados.has(e));
+  return botElegir(candidatos, e => {
+    const w = A[e].a === desde ? A[e].b : A[e].a;
+    const cerca = [w].concat(V[w].vecinos.filter(x => x !== desde)).filter(libre);
+    return cerca.length ? Math.max(...cerca.map(u => botPuntuarVertice(est, k, u, 2))) : -5;
+  }, nivel);
+}
+
+// ---------- Turno ----------
+function botLadronMeBloquea(est, k) {
+  const t = est.tablero[est.ladron];
+  return !!t.numero && est.poblados.some(p => p.j === k && est.geo.vertices[p.v].hexes.includes(est.ladron));
+}
+
+function botPuedeJugar(est, k, tipo) {
+  return !est.jugoCarta && est.jugadores[k].cartas.some(c => c.tipo === tipo && c.compra !== est.numTurno);
+}
+
+// Cuántos pasos hay desde "desde" hasta una esquina libre donde se podría poblar (los poblados rivales cortan el paso).
+function botDistanciaALibre(est, k, desde, libre) {
+  const V = est.geo.vertices;
+  const rival = new Set(est.poblados.filter(p => p.j !== k).map(p => p.v));
+  const vistos = new Set([desde]);
+  let frente = [desde], d = 0;
+  while (frente.length && d <= 6) {
+    if (frente.some(libre)) return d;
+    const sig = [];
+    frente.forEach(v => {
+      if (rival.has(v) && d > 0) return;
+      V[v].vecinos.forEach(u => { if (!vistos.has(u)) { vistos.add(u); sig.push(u); } });
+    });
+    frente = sig; d++;
+  }
+  return 99;
+}
+
+// Mejor lugar para un camino: acerca a una buena esquina libre o al camino más largo. Si no, null.
+function botMejorCamino(est, k, nivel) {
+  if (botPiezas(est, k, "camino") >= LIMITES.camino) return null;
+  const V = est.geo.vertices, A = est.geo.aristas;
+  const lugares = puroLugares(est.geo, est.poblados, est.caminos, k, "camino");
+  if (!lugares.length) return null;
+  const ocupados = new Set(est.poblados.map(p => p.v));
+  const conectados = new Set(est.poblados.filter(p => p.j === k).map(p => p.v));
+  est.caminos.filter(c => c.j === k).forEach(c => { conectados.add(A[c.e].a); conectados.add(A[c.e].b); });
+  const puedePoblar = botPiezas(est, k, "poblado") < LIMITES.poblado;
+  const libre = u => !ocupados.has(u) && V[u].vecinos.every(x => !ocupados.has(x));
+  const sinLugar = puedePoblar && puroLugares(est.geo, est.poblados, est.caminos, k, "poblado").length === 0;   // no tiene dónde poblar: tiene que expandirse
+  const largoAhora = puroLargo(est.geo, est.poblados, est.caminos, k);
+  const rivalMax = Math.max(0, ...est.largos.filter((l, i) => i !== k));
+  const valor = id => {
+    const e = A[id];
+    const w = !conectados.has(e.a) ? e.a : !conectados.has(e.b) ? e.b : null;
+    let v = 0;
+    if (w !== null && puedePoblar) {
+      const otro = w === e.a ? e.b : e.a;
+      if (libre(w)) v = botPuntuarVertice(est, k, w, 0);
+      V[w].vecinos.forEach(u => { if (u !== otro && libre(u)) v = Math.max(v, 0.6 * botPuntuarVertice(est, k, u, 0)); });
+    }
+    if (sinLugar && w !== null) v = Math.max(v, 12 - 3 * botDistanciaALibre(est, k, w, libre));    // avanza hacia donde hay lugar
+    const nuevo = puroLargo(est.geo, est.poblados, est.caminos.concat([{ e: id, j: k }]), k);
+    if (nuevo > largoAhora && est.titulos.camino !== k) {
+      const meta = Math.max(5, rivalMax + 1);                                   // largo que hace falta para quedarse con el título
+      const restantes = LIMITES.camino - botPiezas(est, k, "camino");
+      if (nuevo >= meta) v += 20;                                               // se queda con el camino más largo
+      else if (nuevo >= 3 && meta - nuevo <= 4 && nuevo + restantes - 1 >= meta) v += 10;   // lo acerca al camino más largo
+    } else if (nuevo > largoAhora && rivalMax >= largoAhora) v += 6;            // defiende el título
+    return v;
+  };
+  let mejor = null, mejorV = -Infinity;
+  lugares.forEach(id => {
+    const v = valor(id) + Math.random() * (nivel === "facil" ? 10 : 0.3);
+    if (v > mejorV) { mejor = id; mejorV = v; }
+  });
+  return mejorV >= (sinLugar ? 4 : BOT_UMBRAL_CAMINO) ? mejor : null;
+}
+
+// Lista, en orden de prioridad, lo que el bot querría construir (sin mirar si le alcanza).
+function botPlan(est, k, nivel) {
+  const plan = [];
+  const sinCiudad = est.poblados.filter(p => p.j === k && !p.ciudad).map(p => p.v);
+  if (sinCiudad.length && botPiezas(est, k, "ciudad") < LIMITES.ciudad)
+    plan.push({ construccion: "ciudad", id: botElegir(sinCiudad, v => botProduccion(est, v), nivel), costo: COSTOS.ciudad });
+  if (botPiezas(est, k, "poblado") < LIMITES.poblado) {
+    const lugares = puroLugares(est.geo, est.poblados, est.caminos, k, "poblado");
+    if (lugares.length) plan.push({ construccion: "poblado", id: botElegir(lugares, v => botPuntuarVertice(est, k, v, 0), nivel), costo: COSTOS.poblado });
+  }
+  if (est.mazoRestante > 0 && botTotal(est.jugadores[k].recursos) >= 5) plan.push({ construccion: "carta", costo: COSTOS.carta });   // "de sobra"
+  const camino = botMejorCamino(est, k, nivel);
+  if (camino !== null) plan.push({ construccion: "camino", id: camino, costo: COSTOS.camino });
+  return plan;
+}
+
+// Si cambiando con la banca (o puertos) puede completar una construcción, devuelve el primer cambio.
+function botPlanBanca(est, k, plan) {
+  const rec = est.jugadores[k].recursos;
+  for (const it of plan) {
+    if (it.construccion === "carta") continue;
+    const falta = {};
+    let hay = false;
+    MATERIALES.forEach(m => { const f = Math.max(0, (it.costo[m] || 0) - rec[m]); if (f) { falta[m] = f; hay = true; } });
+    if (!hay) continue;
+    const sobra = {};
+    MATERIALES.forEach(m => { sobra[m] = rec[m] - (it.costo[m] || 0); });
+    const pasos = [];
+    let completo = true;
+    for (const m of MATERIALES) {
+      for (let q = 0; q < (falta[m] || 0) && completo; q++) {
+        let mejor = null, mejorV = -1;
+        MATERIALES.forEach(r => {
+          if (r === m || falta[r]) return;
+          const t = botTasa(est, k, r);
+          if (sobra[r] >= t && sobra[r] / t > mejorV) { mejor = r; mejorV = sobra[r] / t; }
+        });
+        if (mejor === null) completo = false;
+        else { sobra[mejor] -= botTasa(est, k, mejor); pasos.push({ dar: mejor, recibir: m }); }
+      }
+    }
+    if (completo && pasos.length) return { tipo: "banca", dar: pasos[0].dar, recibir: pasos[0].recibir };
+  }
+  return null;
+}
+
+// Antes de tirar los dados: si el ladrón le bloquea un hexágono, conviene jugar el Caballero ya,
+// así ese hexágono vuelve a producir en esta misma tirada. Devuelve { tipo: "caballero" } o { tipo: "tirar" }.
+function botAntesDeTirar(est, k, nivel) {
+  const azar = nivel !== "facil" || Math.random() < 0.6;
+  if (botPuedeJugar(est, k, "caballero") && botLadronMeBloquea(est, k) && azar) return { tipo: "caballero" };
+  return { tipo: "tirar" };
+}
+
+// Una decisión por vez (después de tirar). Devuelve: { tipo: "caballero" } | { tipo: "construir", construccion, id } |
+// { tipo: "carta" } | { tipo: "banca", dar, recibir } | { tipo: "terminar" }
+function botDecidirTurno(est, k, nivel) {
+  const rec = est.jugadores[k].recursos;
+  const azar = () => nivel !== "facil" || Math.random() < 0.6;                 // en "facil" a veces se saltea una opción
+  // a. Caballero si el ladrón le bloquea un hexágono (normalmente ya lo jugó antes de tirar; esto cubre el resto de los casos)
+  if (botPuedeJugar(est, k, "caballero") && botLadronMeBloquea(est, k) && azar()) return { tipo: "caballero" };
+  // b-e. ciudad, poblado, carta, camino (en ese orden), solo si le alcanza
+  const plan = botPlan(est, k, nivel);
+  for (const it of plan) {
+    if (!botAlcanza(rec, it.costo) || !azar()) continue;
+    return it.construccion === "carta" ? { tipo: "carta" } : { tipo: "construir", construccion: it.construccion, id: it.id };
+  }
+  // f. banca / puertos, si con eso completa una construcción
+  if (nivel !== "facil" || Math.random() < 0.3) {
+    const t = botPlanBanca(est, k, plan);
+    if (t) return t;
+  }
+  return { tipo: "terminar" };
+}
+
+// ---------- El 7 ----------
+// Descarta primero lo que menos necesita. Devuelve { recurso: cantidad }.
+function botDescartar(est, k, cantidad, nivel) {
+  const rec = Object.assign({}, est.jugadores[k].recursos);
+  const sel = Object.fromEntries(MATERIALES.map(m => [m, 0]));
+  for (let q = 0; q < cantidad; q++) {
+    const con = MATERIALES.filter(m => rec[m] > 0);
+    let r;
+    if (nivel === "facil") r = con[Math.floor(Math.random() * con.length)];
+    else {
+      let mejorV = -Infinity;
+      con.forEach(m => { const v = rec[m] - BOT_IDEAL[m] + Math.random() * 0.1; if (v > mejorV) { r = m; mejorV = v; } });
+    }
+    rec[r]--; sel[r]++;
+  }
+  return sel;
+}
+
+// Mueve el ladrón al hexágono más productivo de un rival, de preferencia del que va ganando.
+function botMoverLadron(est, k, nivel) {
+  const V = est.geo.vertices;
+  const validos = est.tablero.map((t, i) => i).filter(i => i !== est.ladron);
+  if (nivel === "facil") return validos[Math.floor(Math.random() * validos.length)];
+  const maxPts = Math.max(...est.jugadores.map((j, i) => (i === k ? -1 : j.puntosVisibles)));
+  return botElegir(validos, i => {
+    const p = botPips(est.tablero[i].numero);
+    let s = 0;
+    est.poblados.forEach(b => {
+      if (!V[b.v].hexes.includes(i)) return;
+      const peso = p * (b.ciudad ? 2 : 1);
+      if (b.j === k) s -= 3 * peso;
+      else s += peso * (1 + est.jugadores[b.j].puntosVisibles / 6) + (est.jugadores[b.j].puntosVisibles === maxPts ? 2 * peso : 0);
+    });
+    return s;
+  }, nivel);
+}
+
+function botElegirVictima(est, k, candidatos, nivel) {                        // roba al que va ganando
+  if (nivel === "facil") return candidatos[Math.floor(Math.random() * candidatos.length)];
+  return botElegir(candidatos, j => est.jugadores[j].puntosVisibles * 100 + est.jugadores[j].numCartasRecurso, "normal");
+}
+
+// ---------- Ofertas de otros jugadores ----------
+// oferta = { de, oferta (lo que le dan al bot), pide (lo que le piden al bot) }. Devuelve "aceptar" o "rechazar".
+function botDecideOferta(est, k, oferta, nivel) {
+  const yo = est.jugadores[k].recursos;
+  if (!botAlcanza(yo, oferta.pide)) return "rechazar";
+  if (est.jugadores[oferta.de].puntosVisibles >= 8) return "rechazar";         // el que ofrece está cerca de ganar
+  if (nivel === "facil") return Math.random() < 0.4 ? "aceptar" : "rechazar";
+  const recibeAlgoNecesario = MATERIALES.some(m => oferta.oferta[m] > 0 && yo[m] < BOT_IDEAL[m]);
+  const entregaSobrante = MATERIALES.every(m => !(oferta.pide[m] > 0) || yo[m] - oferta.pide[m] >= BOT_IDEAL[m]);
+  return recibeAlgoNecesario && entregaSobrante ? "aceptar" : "rechazar";
+}
+
+// ====================================================================================
+//  ORGANIZADOR DE BOTS
+//  Lo usa quien lleva la partida (la pantalla local ahora, el servidor más adelante).
+//  Mira el estado solo para saber a qué bot le toca; la decisión la toma con la VISTA de ese bot.
+//  Devuelve { jugadorId, accion } (las mismas acciones que usa un humano) o null si no le toca a ningún bot.
+// ====================================================================================
+function botActor(e) {
+  if (e.fase === "inicial") return e.jugadores[e.turno].bot ? e.turno : null;
+  if (e.fase !== "juego") return null;
+  if (e.pendiente === "descartar") { const d = e.descartes[0]; return d && e.jugadores[d.k].bot ? d.k : null; }
+  if (e.pendiente === "comercio") {
+    const c = e.comercio, k = c && c.para.find(x => e.jugadores[x].bot && c.estado[x] === "pendiente");
+    return k !== undefined && k !== null ? k : null;
+  }
+  if (e.pendiente === "caminos") return null;                                   // los bots no juegan esa carta
+  return e.jugadores[e.turno].bot ? e.turno : null;
+}
+
+function botSiguienteJugada(e, nivel) {
+  const k = botActor(e);
+  if (k === null) return null;
+  const est = Object.assign(vistaDelJugador(e, k), { geo: GEO });
+  const hacer = accion => ({ jugadorId: k, accion });
+  if (e.fase === "inicial") {
+    return e.subfase === "poblado"
+      ? hacer({ tipo: "colocarPoblado", v: botElegirPoblado(est, k, nivel) })
+      : hacer({ tipo: "colocarCamino", e: botElegirCamino(est, k, nivel, e.ultimoPoblado) });
+  }
+  if (e.pendiente === "descartar") return hacer({ tipo: "descartar", recursos: botDescartar(est, k, e.descartes[0].deben, nivel) });
+  if (e.pendiente === "ladron") return hacer({ tipo: "moverLadron", hex: botMoverLadron(est, k, nivel) });
+  if (e.pendiente === "robar") return hacer({ tipo: "robar", de: botElegirVictima(est, k, e.victimas, nivel) });
+  if (e.pendiente === "comercio") {
+    const c = e.comercio;
+    const dec = botDecideOferta(est, k, { de: c.de, oferta: c.oferta, pide: c.pide }, nivel);
+    return hacer({ tipo: "responderComercio", respuesta: dec === "aceptar" ? "aceptar" : "rechazar" });
+  }
+  if (!e.haTirado) return botAntesDeTirar(est, k, nivel).tipo === "caballero" ? hacer({ tipo: "jugarCarta", carta: "caballero" }) : hacer({ tipo: "tirar" });
+  const a = botDecidirTurno(est, k, nivel);
+  if (a.tipo === "caballero") return hacer({ tipo: "jugarCarta", carta: "caballero" });
+  if (a.tipo === "construir") return hacer({ tipo: "construir", construccion: a.construccion, id: a.id });
+  if (a.tipo === "carta") return hacer({ tipo: "comprarCarta" });
+  if (a.tipo === "banca") return hacer({ tipo: "bancaCambio", dar: a.dar, recibir: a.recibir });
+  return hacer({ tipo: "terminarTurno" });
+}
+
+// Si una decisión fuera rechazada por el motor, se juega algo simple y válido para que la partida siga.
+function botJugadaDeEmergencia(e) {
+  const k = botActor(e);
+  if (k === null) return null;
+  const hacer = accion => ({ jugadorId: k, accion });
+  if (e.fase === "inicial") {
+    if (e.subfase === "poblado") return hacer({ tipo: "colocarPoblado", v: puroVerticesLibres(GEO, e.poblados)[0] });
+    const usados = new Set(e.caminos.map(c => c.e));
+    return hacer({ tipo: "colocarCamino", e: GEO.vertices[e.ultimoPoblado].aristas.find(x => !usados.has(x)) });
+  }
+  if (e.pendiente === "descartar") {
+    const rec = Object.assign({}, e.jugadores[k].recursos), sel = Object.fromEntries(MATERIALES.map(m => [m, 0]));
+    for (let q = 0; q < e.descartes[0].deben; q++) { const m = MATERIALES.filter(x => rec[x] > 0).sort((a, b) => rec[b] - rec[a])[0]; rec[m]--; sel[m]++; }
+    return hacer({ tipo: "descartar", recursos: sel });
+  }
+  if (e.pendiente === "ladron") return hacer({ tipo: "moverLadron", hex: e.tablero.findIndex((t, i) => i !== e.ladron) });
+  if (e.pendiente === "robar") return hacer({ tipo: "robar", de: e.victimas[0] });
+  if (e.pendiente === "comercio") return hacer({ tipo: "responderComercio", respuesta: "rechazar" });
+  return hacer({ tipo: e.haTirado ? "terminarTurno" : "tirar" });
+}
+</script>
+
+<script id="red-online">
+// ====================================================================================
+//  RED ONLINE (sin pantalla)
+//  El anfitrión es la autoridad: guarda el estado completo y valida cada acción con aplicarAccion.
+//  Los invitados mandan acciones y reciben SOLO su vistaDelJugador. No hay servidor propio:
+//  la conexión es directa entre navegadores (PeerJS usa un servicio público solo para presentarlos).
+//
+//  Mensajes (JSON):
+//    invitado -> anfitrión: { t:"hola", nombre } | { t:"accion", id, accion }
+//    anfitrión -> invitado: { t:"bienvenida", asiento, codigo } | { t:"rechazo", motivo } | { t:"sala", sala }
+//                           | { t:"juego", asiento, vista, presencia, pausada, faltan }
+//                           | { t:"resultado", id, ok, error, eventos } | { t:"fin", motivo }
+//  Transporte (se inyecta; PeerJS en el navegador, uno simulado en las pruebas):
+//    transporte.abrirSala(codigo, { alAbrir, alConexion(conn), alError(err), alDesconectado }) -> { cerrar(), reconectar() }
+//    transporte.conectar(codigo, { alAbrir(conn), alError(err) }) -> { cerrar() }
+//    conn: { enviar(obj), cerrar(), alDato(cb), alCerrar(cb), alError(cb) }
+// ====================================================================================
+const RED_PREFIJO = "sapan-v1-";
+const RED_LETRAS = "ABCDEFGHJKMNPQRSTUVWXYZ";            // sin I, L ni O (se confunden con 1 y 0)
+const RED_GRACIA_MS = 30000;                              // cuánto se muestra "reconectando" antes de "desconectado"
+
+function redCodigoNuevo() {
+  let c = "";
+  for (let i = 0; i < 5; i++) c += RED_LETRAS[Math.floor(Math.random() * RED_LETRAS.length)];
+  return c;
+}
+function redCodigoValido(c) { return typeof c === "string" && /^[A-Z]{5}$/.test(c); }
+function redNombreLimpio(n) { return String(n === undefined || n === null ? "" : n).replace(/\s+/g, " ").trim().slice(0, 14); }
+function redCodigoDeLink(search) {
+  const m = /[?&]sala=([A-Za-z]{5})(?![A-Za-z])/.exec(search || "");
+  return m ? m[1].toUpperCase() : "";
+}
+
+// Traduce los errores de PeerJS a mensajes claros.
+function redTraducirError(e) {
+  const tipo = (e && e.type) || "desconocido";
+  const textos = {
+    "peer-unavailable": "No existe esa sala, o el anfitrión ya no está conectado. Revisá el código.",
+    "unavailable-id": "Ese código de sala ya está en uso.",
+    "network": "No se pudo conectar con el servicio de salas. Revisá tu conexión a internet.",
+    "server-error": "El servicio de salas no responde en este momento. Probá de nuevo en unos minutos.",
+    "socket-error": "Se cortó la conexión con el servicio de salas.",
+    "socket-closed": "Se cortó la conexión con el servicio de salas.",
+    "webrtc": "No se pudo armar la conexión directa con el otro jugador (puede ser por la red o el navegador).",
+    "browser-incompatible": "Este navegador no permite conexiones directas entre jugadores.",
+    "invalid-id": "El código de sala no es válido.",
+    "sin-libreria": "No se pudo cargar la librería de conexión (PeerJS). Revisá tu internet y recargá la página.",
+    "tiempo": "Se agotó el tiempo de espera para conectar. Probá de nuevo."
+  };
+  return { tipo, mensaje: textos[tipo] || "Error de conexión" + (e && e.message ? ": " + e.message : ".") };
+}
+
+// ---------- Transporte con PeerJS ----------
+function transportePeerJS(PeerClase) {
+  const envolver = c => ({
+    enviar: obj => c.send(obj),
+    cerrar: () => { try { c.close(); } catch (x) { /* ya cerrada */ } },
+    alDato: cb => c.on("data", cb),
+    alCerrar: cb => c.on("close", cb),
+    alError: cb => c.on("error", e => cb(redTraducirError(e)))
+  });
+  const sinLibreria = cb => { setTimeout(() => cb(redTraducirError({ type: "sin-libreria" })), 0); return { cerrar() {}, reconectar() {} }; };
+  return {
+    abrirSala(codigo, cb) {
+      if (typeof PeerClase !== "function") return sinLibreria(cb.alError);
+      let peer;
+      try { peer = new PeerClase(RED_PREFIJO + codigo, { debug: 0 }); }
+      catch (x) { return sinLibreria(cb.alError); }
+      peer.on("open", () => cb.alAbrir());
+      peer.on("connection", c => cb.alConexion(envolver(c)));
+      peer.on("error", e => cb.alError(redTraducirError(e)));
+      peer.on("disconnected", () => { if (cb.alDesconectado) cb.alDesconectado(); });
+      return { cerrar() { try { peer.destroy(); } catch (x) { /* nada */ } }, reconectar() { try { peer.reconnect(); } catch (x) { /* nada */ } } };
+    },
+    conectar(codigo, cb) {
+      if (typeof PeerClase !== "function") return sinLibreria(cb.alError);
+      let peer;
+      try { peer = new PeerClase(undefined, { debug: 0 }); }
+      catch (x) { return sinLibreria(cb.alError); }
+      peer.on("open", () => {
+        const c = peer.connect(RED_PREFIJO + codigo, { reliable: true, serialization: "json" });
+        const w = envolver(c);
+        c.on("open", () => cb.alAbrir(w));
+        c.on("error", e => cb.alError(redTraducirError(e)));
+      });
+      peer.on("error", e => cb.alError(redTraducirError(e)));
+      return { cerrar() { try { peer.destroy(); } catch (x) { /* nada */ } } };
+    }
+  };
+}
+
+// ====================== ANFITRIÓN ======================
+// opc: { transporte, codigo, nombre, estado(), alAccion(asiento, accion) -> { ok, error, eventos }, alSala(sala), alPresencia(),
+//        alError(err), temporizador: { poner(fn, ms), quitar(id) } }
+function crearAnfitrion(opc) {
+  const T = opc.temporizador || { poner: (f, ms) => setTimeout(f, ms), quitar: id => clearTimeout(id) };
+  const sala = { codigo: opc.codigo, n: 2, bots: 0, nivel: "normal", fase: "espera", pausada: false,
+    humanos: [{ nombre: redNombreLimpio(opc.nombre) || "Anfitrión", conexion: null, estado: "anfitrion", t: null }] };
+  let abierta = null;
+
+  const necesarios = () => sala.n - sala.bots;
+  const invitados = () => sala.humanos.map((h, i) => [h, i]).filter(([h, i]) => i > 0);
+  const presenciaLista = () => Array.from({ length: sala.n }, (_, i) => i < sala.humanos.length ? sala.humanos[i].estado : "bot");
+  const faltan = () => sala.humanos.filter(h => h.estado === "reconectando" || h.estado === "desconectado").map(h => h.nombre);
+  function publica() {
+    return { codigo: sala.codigo, n: sala.n, bots: sala.bots, nivel: sala.nivel, fase: sala.fase,
+      humanos: sala.humanos.map(h => ({ nombre: h.nombre, estado: h.estado })), lugaresLibres: Math.max(0, necesarios() - sala.humanos.length) };
+  }
+  const enviar = (h, msg) => { try { if (h.conexion) h.conexion.enviar(msg); } catch (x) { /* la conexión se cae sola */ } };
+
+  function difundirSala() {
+    invitados().forEach(([h]) => { if (h.estado === "conectado") enviar(h, { t: "sala", sala: publica() }); });
+    if (opc.alSala) opc.alSala(publica());
+  }
+  // A cada jugador conectado solo le llega SU vista. Nunca el estado completo.
+  function difundir() {
+    if (sala.fase !== "juego") return;
+    const e = opc.estado();
+    if (!e) return;
+    const presencia = presenciaLista(), pendientes = faltan();
+    invitados().forEach(([h, i]) => {
+      if (h.estado === "conectado") enviar(h, { t: "juego", asiento: i, vista: vistaDelJugador(e, i), presencia, pausada: sala.pausada, faltan: pendientes });
+    });
+    if (opc.alPresencia) opc.alPresencia();
+  }
+  function revisarPausa() {
+    const antes = sala.pausada;
+    sala.pausada = sala.fase === "juego" && sala.humanos.some(h => h.estado === "reconectando" || h.estado === "desconectado");
+    return antes !== sala.pausada;
+  }
+  function rechazar(c, motivo) {
+    try { c.enviar({ t: "rechazo", motivo }); } catch (x) { /* nada */ }
+    T.poner(() => c.cerrar(), 50);
+  }
+
+  function unirse(c, nombreCrudo) {
+    const nombre = redNombreLimpio(nombreCrudo);
+    if (!nombre) return rechazar(c, "Escribí tu nombre para entrar.");
+    const clave = nombre.toLowerCase();
+    const idx = sala.humanos.findIndex(h => h.nombre.toLowerCase() === clave);
+    if (sala.fase === "espera") {
+      if (idx >= 0) return rechazar(c, "Ese nombre ya está en uso en la sala. Elegí otro.");
+      if (sala.humanos.length >= necesarios()) return rechazar(c, "La sala está llena.");
+      sala.humanos.push({ nombre, conexion: c, estado: "conectado", t: null });
+      c.asiento = sala.humanos.length - 1;
+      enviar(sala.humanos[c.asiento], { t: "bienvenida", asiento: c.asiento, codigo: sala.codigo });
+      return difundirSala();
+    }
+    if (sala.fase !== "juego") return rechazar(c, "Esta sala ya se cerró.");
+    // La partida ya empezó: solo puede volver quien ya estaba, con el mismo nombre.
+    if (idx <= 0) return rechazar(c, idx === 0 ? "Ese nombre es el del anfitrión." : "La partida ya empezó y en esta sala no hay lugar libre. Solo pueden volver los jugadores que ya estaban, con su mismo nombre.");
+    const h = sala.humanos[idx];
+    if (h.estado === "conectado") return rechazar(c, "Ese jugador ya está conectado.");
+    if (h.t !== null) T.quitar(h.t);
+    h.t = null; h.conexion = c; h.estado = "conectado"; c.asiento = idx;
+    enviar(h, { t: "bienvenida", asiento: idx, codigo: sala.codigo });
+    revisarPausa();
+    difundir();
+  }
+
+  function recibir(c, msg) {
+    if (!msg || typeof msg !== "object" || typeof msg.t !== "string") return;
+    let tam = 0;
+    try { tam = JSON.stringify(msg).length; } catch (x) { return; }
+    if (tam > 20000) return;
+    if (c.asiento === undefined) { if (msg.t === "hola" && !c.saludo) { c.saludo = true; unirse(c, msg.nombre); } return; }
+    if (msg.t !== "accion") return;
+    const h = sala.humanos[c.asiento];
+    if (!h || h.conexion !== c) return;
+    const responder = (ok, error, eventos) => enviar(h, { t: "resultado", id: msg.id, ok, error, eventos: eventos || [] });
+    if (sala.fase !== "juego") return responder(false, "La partida todavía no empezó.");
+    if (sala.pausada) return responder(false, "La partida está en pausa: falta que vuelva alguien.");
+    const r = opc.alAccion(c.asiento, msg.accion);     // el asiento sale de la conexión, no de lo que diga el mensaje
+    responder(!!r.ok, r.error, r.ok ? (r.eventos || []).filter(ev => ev.para === c.asiento) : []);
+    if (r.ok) difundir();
+  }
+
+  function cerrada(c) {
+    if (c.asiento === undefined) return;
+    const h = sala.humanos[c.asiento];
+    if (!h || h.conexion !== c) return;                 // una conexión vieja que ya fue reemplazada
+    h.conexion = null;
+    if (sala.fase === "espera") {
+      sala.humanos.splice(c.asiento, 1);
+      sala.humanos.forEach((x, i) => { if (x.conexion) x.conexion.asiento = i; });
+      difundirSala();
+      return;
+    }
+    h.estado = "reconectando";
+    h.t = T.poner(() => { h.estado = "desconectado"; h.t = null; difundir(); }, RED_GRACIA_MS);
+    revisarPausa();
+    difundir();
+  }
+
+  function nuevaConexion(c) {
+    c.alDato(msg => recibir(c, msg));
+    c.alCerrar(() => cerrada(c));
+    c.alError(() => { /* el cierre llega por alCerrar */ });
+  }
+
+  return {
+    sala,
+    abrir(listo) {
+      let avisado = false;
+      const fin = err => { if (!avisado) { avisado = true; listo(err); } else if (err && opc.alError) opc.alError(err); };
+      abierta = opc.transporte.abrirSala(opc.codigo, {
+        alAbrir: () => fin(null), alConexion: nuevaConexion, alError: err => fin(err),
+        alDesconectado: () => {
+          if (opc.alError) opc.alError({ tipo: "servidor", mensaje: "Se perdió la conexión con el servicio de salas. Reintentando…", recuperable: true });
+          if (abierta && abierta.reconectar) abierta.reconectar();
+        }
+      });
+    },
+    configurar(cfg) {                                    // false si no se puede (ya hay más jugadores conectados)
+      const n = cfg.n === undefined ? sala.n : cfg.n, bots = cfg.bots === undefined ? sala.bots : cfg.bots;
+      if (!(n >= 2 && n <= 4 && bots >= 0 && bots <= n - 1)) return false;
+      if (sala.humanos.length > n - bots) return false;
+      sala.n = n; sala.bots = bots;
+      if (cfg.nivel === "facil" || cfg.nivel === "normal") sala.nivel = cfg.nivel;
+      difundirSala();
+      return true;
+    },
+    ponerNombre(nombre) { const n = redNombreLimpio(nombre); if (n) { sala.humanos[0].nombre = n; difundirSala(); } },
+    puedeEmpezar() { return sala.fase === "espera" && sala.humanos.length === necesarios() && sala.humanos.every(h => h.estado === "anfitrion" || h.estado === "conectado"); },
+    // Devuelve la configuración para crearPartida: primero las personas (en orden de llegada), después los bots.
+    iniciar() {
+      if (!this.puedeEmpezar()) return null;
+      sala.fase = "juego";
+      const jugadores = sala.humanos.map(h => ({ nombre: h.nombre, bot: false }));
+      for (let i = 1; i <= sala.bots; i++) jugadores.push({ nombre: "Bot " + i, bot: true });
+      return { jugadores, nivel: sala.nivel };
+    },
+    // Reabre una partida guardada: todos los demás jugadores quedan "desconectados" hasta que vuelvan.
+    retomar(nombres, nivel, nBots) {
+      sala.fase = "juego"; sala.nivel = nivel; sala.bots = nBots; sala.n = nombres.length + nBots;
+      sala.humanos = nombres.map((n, i) => ({ nombre: n, conexion: null, estado: i === 0 ? "anfitrion" : "desconectado", t: null }));
+      revisarPausa();
+    },
+    difundir, publica, presencia: presenciaLista, faltan,
+    pausada: () => sala.pausada,
+    cerrar(motivo) {
+      sala.fase = "cerrada";
+      invitados().forEach(([h]) => { enviar(h, { t: "fin", motivo }); if (h.t !== null) T.quitar(h.t); });
+      T.poner(() => { invitados().forEach(([h]) => { if (h.conexion) h.conexion.cerrar(); }); if (abierta) abierta.cerrar(); }, 100);
+    }
+  };
+}
+
+// Abre una sala probando otro código si el elegido ya está en uso.
+function abrirAnfitrionNuevo(opc, listo, intentos) {
+  const resto = intentos === undefined ? 6 : intentos;
+  const a = crearAnfitrion(Object.assign({}, opc, { codigo: opc.codigo || redCodigoNuevo() }));
+  a.abrir(err => {
+    if (!err) return listo(null, a);
+    if (err.tipo === "unavailable-id" && resto > 0 && !opc.codigoFijo) return abrirAnfitrionNuevo(Object.assign({}, opc, { codigo: "" }), listo, resto - 1);
+    listo(err, null);
+  });
+}
+
+// ====================== INVITADO ======================
+// opc: { transporte, codigo, nombre, alConexion(estado), alSala(sala), alJuego(msg), alRechazo(motivo), alFin(motivo), alError(err),
+//        temporizador: { poner, quitar } }
+function crearInvitado(opc) {
+  const T = opc.temporizador || { poner: (f, ms) => setTimeout(f, ms), quitar: id => clearTimeout(id) };
+  let conn = null, sesion = null, cerrado = false, intentos = 0, conectado = false, ultimoId = 0, espera = null, reintento = null;
+  const pendientes = {};
+
+  const limpiar = () => { if (espera !== null) { T.quitar(espera); espera = null; } };
+  const fallarPendientes = () => Object.keys(pendientes).forEach(id => { const f = pendientes[id]; delete pendientes[id]; f({ ok: false, error: "Se perdió la conexión." }); });
+  function terminar(motivo) {
+    if (cerrado) return;
+    cerrado = true; limpiar();
+    if (reintento !== null) T.quitar(reintento);
+    fallarPendientes();
+    if (sesion) sesion.cerrar();
+    opc.alFin(motivo);
+  }
+  function perdida() {
+    if (cerrado) return;
+    conectado = false; conn = null;
+    fallarPendientes();
+    if (++intentos > 8) return terminar("El anfitrión se desconectó: la partida terminó.");
+    opc.alConexion("reconectando");
+    reintento = T.poner(() => { reintento = null; conectar(); }, 2000);
+  }
+  function recibir(msg) {
+    if (!msg || typeof msg !== "object") return;
+    switch (msg.t) {
+      case "bienvenida": conectado = true; intentos = 0; limpiar(); opc.alConexion("conectado"); break;
+      case "rechazo": cerrado = true; limpiar(); if (sesion) sesion.cerrar(); opc.alRechazo(String(msg.motivo || "No se pudo entrar a la sala.")); break;
+      case "sala": opc.alSala(msg.sala); break;
+      case "juego": opc.alJuego(msg); break;
+      case "resultado": { const f = pendientes[msg.id]; if (f) { delete pendientes[msg.id]; f({ ok: !!msg.ok, error: msg.error, eventos: msg.eventos || [] }); } break; }
+      case "fin": terminar(String(msg.motivo || "La partida terminó.")); break;
+    }
+  }
+  function conectar() {
+    if (cerrado) return;
+    if (sesion) { try { sesion.cerrar(); } catch (x) { /* nada */ } }
+    sesion = opc.transporte.conectar(opc.codigo, {
+      alAbrir: c => {
+        conn = c;
+        c.alDato(recibir);
+        c.alCerrar(() => { if (conn === c) perdida(); });
+        c.alError(() => { /* el cierre llega por alCerrar */ });
+        c.enviar({ t: "hola", nombre: opc.nombre });
+      },
+      alError: err => {
+        if (cerrado) return;
+        if (conectado || intentos > 0) return perdida();              // estábamos reconectando: cuenta como un intento más
+        limpiar(); cerrado = true; if (sesion) sesion.cerrar();
+        opc.alError(err);
+      }
+    });
+    limpiar();
+    espera = T.poner(() => {
+      espera = null;
+      if (conectado || cerrado) return;
+      if (intentos > 0) perdida();
+      else { cerrado = true; if (sesion) sesion.cerrar(); opc.alError(redTraducirError({ type: "tiempo" })); }
+    }, 15000);
+  }
+  opc.alConexion("conectando");
+  conectar();
+  return {
+    enviarAccion(accion, cb) {
+      if (!conn || !conectado) return cb({ ok: false, error: "No hay conexión con el anfitrión." });
+      const id = ++ultimoId;
+      pendientes[id] = cb;
+      try { conn.enviar({ t: "accion", id, accion }); } catch (x) { delete pendientes[id]; cb({ ok: false, error: "No se pudo enviar la jugada." }); }
+    },
+    salir() { cerrado = true; limpiar(); if (reintento !== null) T.quitar(reintento); if (conn) conn.cerrar(); if (sesion) sesion.cerrar(); },
+    conectado: () => conectado
+  };
+}
+</script>
+
+<script id="pantalla">
+// ====================================================================================
+//  PANTALLA
+//  Solo dibuja a partir de la VISTA del jugador (vistaDelJugador) y manda acciones al motor (aplicarAccion).
+//  No cambia el estado de la partida por su cuenta. El "controlador local" de más abajo (estado, enviar)
+//  hace de servidor mientras se juega en un solo dispositivo.
+// ====================================================================================
+const $ = id => document.getElementById(id);
+const RECURSOS = {
+  madera: { nombre: "Madera", cantidad: 4, claro: "#55a368", oscuro: "#2a6b3d", punto: "#3f8a52",
+    icono: '<polygon points="0,-22 -12,-4 12,-4" fill="#143a20"/><polygon points="0,-12 -16,10 16,10" fill="#143a20"/><rect x="-3" y="10" width="6" height="9" fill="#5a3a1a"/>' },
+  ladrillo: { nombre: "Ladrillo", cantidad: 3, claro: "#e5805a", oscuro: "#b4482a", punto: "#cc623f",
+    icono: '<g fill="#6e2610"><rect x="-13" y="-18" width="12" height="7" rx="1"/><rect x="1" y="-18" width="12" height="7" rx="1"/><rect x="-20" y="-9" width="12" height="7" rx="1"/><rect x="-6" y="-9" width="12" height="7" rx="1"/><rect x="8" y="-9" width="12" height="7" rx="1"/><rect x="-13" y="0" width="12" height="7" rx="1"/><rect x="1" y="0" width="12" height="7" rx="1"/></g>' },
+  lana: { nombre: "Lana", cantidad: 4, claro: "#d3ee9f", oscuro: "#9fcd6c", punto: "#b9df85",
+    icono: '<g fill="#fffdf6" stroke="#6b7a55" stroke-width="1"><circle cx="-5" cy="-2" r="8"/><circle cx="5" cy="-6" r="9"/><circle cx="10" cy="2" r="7"/><circle cx="0" cy="4" r="8"/></g><ellipse cx="-16" cy="0" rx="5" ry="4.5" fill="#3a3a3a"/><g stroke="#3a3a3a" stroke-width="2.5" stroke-linecap="round"><line x1="-4" y1="11" x2="-4" y2="19"/><line x1="8" y1="10" x2="8" y2="19"/></g>' },
+  // Trigo: amarillo SUAVE (manteca)
+  trigo: { nombre: "Trigo", cantidad: 4, claro: "#fbf3c8", oscuro: "#eadb95", punto: "#f2e6ac",
+    icono: '<line x1="0" y1="-20" x2="0" y2="20" stroke="#8a6a10" stroke-width="2.5" stroke-linecap="round"/><g fill="#a07f1c"><ellipse cx="-6" cy="-12" rx="3" ry="6" transform="rotate(-30 -6 -12)"/><ellipse cx="6" cy="-12" rx="3" ry="6" transform="rotate(30 6 -12)"/><ellipse cx="-6" cy="-2" rx="3" ry="6" transform="rotate(-30 -6 -2)"/><ellipse cx="6" cy="-2" rx="3" ry="6" transform="rotate(30 6 -2)"/><ellipse cx="-6" cy="8" rx="3" ry="6" transform="rotate(-30 -6 8)"/><ellipse cx="6" cy="8" rx="3" ry="6" transform="rotate(30 6 8)"/></g>' },
+  piedra: { nombre: "Piedra", cantidad: 3, claro: "#b1b9c2", oscuro: "#7a838d", punto: "#98a1ab",
+    icono: '<polygon points="-22,16 -7,-14 5,6 12,-6 23,16" fill="#464e57"/><polygon points="-7,-14 -11,-5 -3,-5" fill="#f2f4f6"/><polygon points="12,-6 9,0 15,0" fill="#f2f4f6"/>' },
+  // Desierto: amarillo FUERTE (dorado intenso)
+  desierto: { nombre: "Desierto", cantidad: 1, claro: "#ffd91f", oscuro: "#f0a800", punto: "#fbc200",
+    icono: '<g fill="#3d6a22"><rect x="-4" y="-20" width="8" height="38" rx="4"/><path d="M-4 -2 H-10 V-12 a3 3 0 0 1 6 0 Z"/><path d="M4 4 H10 V-8 a3 3 0 0 0 -6 0 Z"/><rect x="-10" y="-3" width="14" height="5"/><rect x="-4" y="2" width="14" height="5"/></g>' }
+};
+const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+const PLURAL = { camino: "caminos", poblado: "poblados", ciudad: "ciudades" };
+const VELOCIDADES = [{ nombre: "Normal", ms: 1000 }, { nombre: "Rápida", ms: 350 }, { nombre: "Muy rápida", ms: 80 }];
+
+// --- Controlador local: el estado vive acá y la pantalla no lo lee (solo lee la vista) ---
+let estado = null;
+let VISTA = null;
+// --- Lo que la pantalla copia de la vista (solo lectura) ---
+let jugadores = [], turno = 0, fase = "inicial", haTirado = false, jugoCarta = false, numTurno = 0, sumaActual = null, ladron = -1;
+let tableroActual = [], puertos = [], poblados = [], caminos = [], titulos = { camino: null, ejercito: null }, largos = [];
+let pendiente = null, descartes = [], comercio = null, caminosGratis = 0, subfase = "poblado", paso = 0, orden = [], ultimoPoblado = null;
+let registro = [], victimas = [], mazoRestante = 0, resultado = null, dados = null, avisoMotor = "";
+// --- Estado propio de la pantalla ---
+let vista = 0, construyendo = null, seleccion = null, tipoPuntero = "mouse", tirando = false, avisoUI = "";
+let modoPrueba = false, tableroKey = null, cantidad = 2;
+let tiposJugador = ["humano", "humano", "humano", "humano"], nivelBot = "normal";
+let pausa = false, velocidad = 0, temporizador = null, botAcciones = 0;
+// --- Modo online ---
+let modoJuego = "local", miId = 0, red = null, vistaRed = null, vistaPendiente = null;
+let presencia = [], pausadaRed = false, faltanRed = [], conexionEstado = "conectado", codigoSala = "";
+const hayPartida = () => (modoJuego === "invitado" ? !!vistaRed : !!estado);
+const esMio = () => modoJuego === "local" || turno === miId;
+
+const contarHumanos = () => jugadores.filter(j => !j.bot).length;
+const todosBots = () => jugadores.length > 0 && jugadores.every(j => j.bot);
+const totalCartas = k => jugadores[k].numCartasRecurso;
+const alcanza = (k, o) => !!jugadores[k].recursos && MATERIALES.every(m => jugadores[k].recursos[m] >= (o[m] || 0));
+const textoCant = o => MATERIALES.filter(m => o[m] > 0).map(m => o[m] + " " + RECURSOS[m].nombre.toLowerCase()).join(" + ");
+const piezasUsadas = (k, tipo) => piezasDe(VISTA, k, tipo);
+const portsDe = k => puertosDe(VISTA, k);
+const tasa = (k, m) => tasaDe(VISTA, k, m);
+const lugares = tipo => lugaresDe(VISTA, turno, tipo);
+const estadoConstruir = tipo => (jugadores[turno].recursos ? estadoConstruirDe(VISTA, turno, tipo) : "recursos");
+const puedeJugarCarta = tipo => !tirando && !!jugadores[turno].cartas && puedeJugarCartaDe(VISTA, turno, tipo);
+
+// Copia en el sitio (mantiene los mismos objetos) lo que devolvió el motor.
+function fusionar(d, s) {
+  const objeto = x => x && typeof x === "object";
+  if (Array.isArray(s)) {
+    d.length = s.length;
+    s.forEach((x, i) => { if (objeto(x) && objeto(d[i]) && Array.isArray(d[i]) === Array.isArray(x)) fusionar(d[i], x); else d[i] = x; });
+    return;
+  }
+  Object.keys(d).forEach(k => { if (!(k in s)) delete d[k]; });
+  Object.keys(s).forEach(k => {
+    const x = s[k];
+    if (objeto(x) && objeto(d[k]) && Array.isArray(d[k]) === Array.isArray(x)) fusionar(d[k], x); else d[k] = x;
+  });
+}
+
+function refrescarVista() {
+  if (modoJuego === "invitado") VISTA = vistaRed;                      // el invitado nunca tiene el estado: solo la vista que le manda el anfitrión
+  else VISTA = vistaDelJugador(estado, modoJuego === "anfitrion" ? miId : vista, { verTodo: modoJuego === "local" && (modoPrueba || estado.jugadores.every(j => j.bot)) });
+  const V = VISTA;
+  ({ jugadores, turno, fase, haTirado, jugoCarta, numTurno, sumaActual, ladron, puertos, poblados, caminos, titulos, largos,
+     pendiente, descartes, comercio, caminosGratis, subfase, paso, orden, ultimoPoblado, registro, victimas, mazoRestante,
+     resultado, dados, aviso: avisoMotor } = V);
+  tableroActual = V.tablero;
+}
+
+// Manda una acción al motor. Local o anfitrión: se aplica en el momento. Invitado: se la manda al anfitrión, que decide.
+// cb (opcional) recibe { ok, error, eventos } cuando hay respuesta.
+function enviar(accion, id, cb) {
+  if (modoJuego === "invitado") {
+    avisoUI = "";
+    if (!red) { if (cb) cb({ ok: false, error: "No hay conexión con el anfitrión." }); return { ok: false }; }
+    red.enviarAccion(accion, r => {
+      if (!r.ok) { avisoUI = r.error || "No se pudo hacer esa jugada."; if (!tirando) render(); }
+      else (r.eventos || []).forEach(manejarEvento);
+      if (cb) cb(r);
+    });
+    return { ok: true, enviada: true, eventos: [] };
+  }
+  let quien = id === undefined ? estado.turno : id;
+  if (modoJuego === "anfitrion" && !estado.jugadores[quien].bot) quien = miId;       // las personas juegan siempre desde su propio asiento
+  avisoUI = "";
+  const r = aplicarAccion(estado, quien, accion);
+  if (!r.ok) {
+    if (!estado.jugadores[quien].bot) avisoUI = r.error;
+    if (!tirando) render();
+    if (cb) cb(r);
+    return r;
+  }
+  fusionar(estado, r.estado);
+  if (modoJuego === "anfitrion") { red.difundir(); guardarAutomatico(); }
+  if (!tirando) render();
+  r.eventos.forEach(manejarEvento);
+  if (cb) cb(r);
+  return r;
+}
+
+function manejarEvento(ev) {
+  if (ev.tipo === "cartaComprada" && jugadores[ev.para] && !jugadores[ev.para].bot && fase !== "fin") mostrarCartaComprada(ev.para, ev.carta);
+}
+
+function el(tag, clase, texto) {
+  const e = document.createElement(tag);
+  if (clase) e.className = clase;
+  if (texto !== undefined) e.textContent = texto;
+  return e;
+}
+
+function boton(texto, clase, accion) {
+  const b = el("button", clase || "", texto);
+  b.type = "button";
+  b.addEventListener("click", accion);
+  return b;
+}
+
+function abrirModal(titulo, nodos, color, opaco) {
+  $("modal").classList.toggle("opaco", !!opaco);
+  $("modal-caja").style.setProperty("--c", color || "#ffd75e");
+  $("modal-titulo").textContent = titulo;
+  const c = $("modal-cuerpo");
+  c.innerHTML = "";
+  nodos.forEach(n => c.append(n));
+  $("modal").hidden = false;
+  const b = c.querySelector("button:not(:disabled)");
+  if (b) b.focus();
+}
+
+function pintarDado(id, valor) {
+  const d = $(id);
+  d.innerHTML = "";
+  for (let k = 0; k < 9; k++) d.append(el("span", valor && PIPS[valor].includes(k) ? "pip on" : "pip"));
+  d.setAttribute("aria-label", valor ? "Dado: " + valor : "Dado sin tirar");
+}
+
+function resaltar(suma) {
+  let cuantos = 0;
+  $("svg").querySelectorAll(".aro").forEach(a => {
+    const prendido = Number(a.dataset.n) === suma;
+    a.classList.toggle("on", prendido);
+    if (prendido) cuantos++;
+  });
+  return cuantos;
+}
+
+function puntosHexagono(radio, giro) {
+  const pts = [];
+  for (let k = 0; k < 6; k++) {
+    const a = (Math.PI / 180) * (60 * k + giro);
+    pts.push((radio * Math.cos(a)).toFixed(1) + "," + (radio * Math.sin(a)).toFixed(1));
+  }
+  return pts.join(" ");
+}
+
+function dibujarPuertos() {
+  const f = n => n.toFixed(1);
+  let h = "";
+  puertos.forEach(pt => {
+    const e = ARISTAS[pt.e], A = VERTICES[e.a], B = VERTICES[e.b], C = POSICIONES[e.hex[0]];
+    const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+    const d = Math.hypot(mx - C.x, my - C.y);
+    const bx = mx + (mx - C.x) / d * 40, by = my + (my - C.y) / d * 40;
+    const gen = pt.tipo === "generico";
+    h += `<g><title>Puerto ${gen ? "3:1 (cualquier recurso)" : "2:1 de " + RECURSOS[pt.tipo].nombre.toLowerCase()}</title>`;
+    h += `<line x1="${f(A.x)}" y1="${f(A.y)}" x2="${f(bx)}" y2="${f(by)}" stroke="#7a5a2a" stroke-width="3.5" stroke-linecap="round"/>`;
+    h += `<line x1="${f(B.x)}" y1="${f(B.y)}" x2="${f(bx)}" y2="${f(by)}" stroke="#7a5a2a" stroke-width="3.5" stroke-linecap="round"/>`;
+    h += `<circle cx="${f(bx)}" cy="${f(by)}" r="21" fill="${gen ? "#f6efdc" : RECURSOS[pt.tipo].claro}" stroke="#fff6df" stroke-width="3"/>`;
+    h += `<circle cx="${f(bx)}" cy="${f(by)}" r="21" fill="none" stroke="#7a5a2a" stroke-width="1.2"/>`;
+    if (!gen) h += `<g transform="translate(${f(bx)},${f(by - 5)}) scale(.42)">${RECURSOS[pt.tipo].icono}</g>`;
+    h += `<text x="${f(bx)}" y="${f(by + (gen ? 0 : 12))}" text-anchor="middle" dominant-baseline="central" font-family="Georgia, serif" font-size="${gen ? 15 : 11}" font-weight="bold" fill="#2b1a05">${gen ? "3:1" : "2:1"}</text></g>`;
+  });
+  return h;
+}
+
+function dibujar(tablero) {
+  let h = "<defs>";
+  for (const k in RECURSOS) {
+    const r = RECURSOS[k];
+    h += `<linearGradient id="g-${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${r.claro}"/><stop offset="1" stop-color="${r.oscuro}"/></linearGradient>`;
+  }
+  h += `<linearGradient id="arena" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6e2a8"/><stop offset="1" stop-color="#d9b86b"/></linearGradient>`;
+  h += `<pattern id="olas" width="60" height="30" patternUnits="userSpaceOnUse"><path d="M0 15 q15 -10 30 0 t30 0" fill="none" stroke="#fff" stroke-opacity=".10" stroke-width="2"/></pattern>`;
+  h += `<filter id="sombra" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#000" flood-opacity=".4"/></filter>`;
+  h += `<filter id="sombrita" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.2" flood-color="#000" flood-opacity=".35"/></filter>`;
+  h += `</defs>`;
+
+  // Mar con olas y isla de arena detrás de los hexágonos.
+  h += `<rect x="-280" y="-250" width="560" height="500" rx="40" fill="url(#olas)"/>`;
+  const isla = puntosHexagono(238, 0);
+  h += `<polygon points="${isla}" fill="#a8803a" stroke="#a8803a" stroke-width="22" stroke-linejoin="round" transform="translate(0,6)" opacity=".5"/>`;
+  h += `<polygon points="${isla}" fill="url(#arena)" stroke="url(#arena)" stroke-width="22" stroke-linejoin="round" filter="url(#sombra)"/>`;
+
+  h += dibujarPuertos();
+  tablero.forEach((t, i) => {
+    const r = RECURSOS[t.tipo];
+    const { x, y } = POSICIONES[i];
+    const demora = (i * 0.025).toFixed(3);
+    h += `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><g class="pop" style="animation-delay:${demora}s">`;
+    h += `<title>${r.nombre}${t.numero ? " – " + t.numero : ""}</title>`;
+    h += `<polygon points="${puntosHexagono(S - 2, -30)}" fill="url(#g-${t.tipo})" stroke="#fff6df" stroke-width="3" stroke-linejoin="round" filter="url(#sombra)"/>`;
+    h += `<polygon points="${puntosHexagono(S - 8, -30)}" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="1.5" stroke-linejoin="round"/>`;
+    if (t.numero) {
+      const roja = t.numero === 6 || t.numero === 8;
+      const color = roja ? "#c0221a" : "#2b2b2b";
+      const puntos = 6 - Math.abs(7 - t.numero);
+      h += `<g transform="translate(0,-14) scale(.9)" filter="url(#sombrita)">${r.icono}</g>`;
+      h += `<circle cx="0" cy="20" r="14.5" fill="#fbf3dc" stroke="#7a5a2a" stroke-width="1.5" filter="url(#sombrita)"/>`;
+      h += `<text x="0" y="17" text-anchor="middle" dominant-baseline="central" font-family="Georgia, serif" font-size="15" font-weight="bold" fill="${color}">${t.numero}</text>`;
+      for (let d = 0; d < puntos; d++) {
+        h += `<circle cx="${((d - (puntos - 1) / 2) * 3.4).toFixed(1)}" cy="27" r="1.2" fill="${color}"/>`;
+      }
+    } else {
+      h += `<g transform="scale(1.15)" filter="url(#sombrita)">${r.icono}</g>`;
+    }
+    if (t.numero) h += `<polygon class="aro" data-n="${t.numero}" points="${puntosHexagono(S - 2, -30)}"/>`;
+    h += `</g></g>`;
+  });
+  document.getElementById("svg").innerHTML = h;
+}
+
+function dibujarNombres() {
+  const cont = $("nombres");
+  const previos = Array.from(cont.querySelectorAll("input")).map(i => i.value);
+  cont.innerHTML = "";
+  let nb = 0;
+  for (let i = 0; i < cantidad; i++) {
+    const bot = tiposJugador[i] === "bot";
+    if (bot) nb++;
+    const fila = el("div", "fila-nombre");
+    const punto = el("i");
+    punto.style.background = COLORES[i].hex;
+    const input = el("input");
+    input.type = "text";
+    input.maxLength = 14;
+    if (bot) {
+      input.value = "Bot " + nb;
+      input.disabled = true;
+      input.setAttribute("aria-label", "Nombre automático del bot " + nb);
+    } else {
+      input.placeholder = "Jugador " + (i + 1);
+      input.value = previos[i] && !/^Bot \d+$/.test(previos[i]) ? previos[i] : "";
+      input.setAttribute("aria-label", "Nombre del jugador " + (i + 1) + " (" + COLORES[i].nombre + ")");
+    }
+    const tipo = el("div", "tipo");
+    const bh = boton("Humano", "tipo-btn", () => { tiposJugador[i] = "humano"; dibujarNombres(); });
+    const bb = boton("Bot", "tipo-btn", () => { tiposJugador[i] = "bot"; dibujarNombres(); });
+    bh.setAttribute("aria-pressed", String(!bot));
+    bb.setAttribute("aria-pressed", String(bot));
+    tipo.append(bh, bb);
+    fila.append(punto, input, tipo);
+    cont.append(fila);
+  }
+  $("nivel-bots").hidden = !tiposJugador.slice(0, cantidad).includes("bot");
+}
+
+function dibujarCostos() {
+  const filas = [["camino", "Camino", 0], ["poblado", "Poblado", 1], ["ciudad", "Ciudad", 2], ["carta", "Carta de desarrollo", "—"]].map(([t, n, pt]) => {
+    const coste = Object.entries(COSTOS[t]).map(([m, c]) =>
+      `<span class="coste"><i style="background:${RECURSOS[m].punto}"></i>${c} ${RECURSOS[m].nombre.toLowerCase()}</span>`).join("");
+    return `<tr><th scope="row">${n}</th><td>${coste}</td><td>${pt}</td></tr>`;
+  }).join("");
+  $("costos").innerHTML = `<h3>Costos de construcción</h3>
+    <table class="tabla-costos"><thead><tr><th></th><th>Cuesta</th><th>Puntos</th></tr></thead><tbody>${filas}</tbody></table>
+    <p class="nota">La ciudad mejora un poblado tuyo y da 2 recursos. Máximo por jugador: 15 caminos, 5 poblados y 4 ciudades. Camino más largo (5 tramos o más) y Ejército más grande (3 caballeros): 2 puntos cada uno. Cada carta de Punto de victoria suma 1, en secreto. Gana quien llega a 10 puntos en su turno.</p>`;
+}
+
+function dibujarConstruccion() {
+  const svg = $("svg2");
+  svg.style.setProperty("--c", jugadores[turno] ? jugadores[turno].color : "#fff");
+  const f = n => n.toFixed(1);
+  let h = "";
+  caminos.forEach(c => {
+    const A = VERTICES[ARISTAS[c.e].a], B = VERTICES[ARISTAS[c.e].b];
+    const xy = `x1="${f(A.x)}" y1="${f(A.y)}" x2="${f(B.x)}" y2="${f(B.y)}" stroke-linecap="round"`;
+    h += `<line ${xy} stroke="#2b1a05" stroke-width="11"/><line ${xy} stroke="${jugadores[c.j].color}" stroke-width="6.5"/>`;
+  });
+  poblados.forEach(p => {
+    const V = VERTICES[p.v];
+    if (p.ciudad) {
+      h += `<g transform="translate(${f(V.x)},${f(V.y + 3)})"><path d="M-13 10 V-1 L-6 -7 L0 -1 V-11 L7 -18 L14 -11 V10 Z" fill="${jugadores[p.j].color}" stroke="#2b1a05" stroke-width="2.5" stroke-linejoin="round"/><rect x="4" y="-5" width="6" height="7" fill="#fff6df"/><rect x="-8" y="2" width="4" height="5" fill="#fff6df"/></g>`;
+    } else {
+      h += `<path transform="translate(${f(V.x)},${f(V.y)})" d="M-9 9 V-2 L0 -11 L9 -2 V9 Z" fill="${jugadores[p.j].color}" stroke="#2b1a05" stroke-width="2.5" stroke-linejoin="round"/>`;
+    }
+  });
+  if (ladron >= 0 && tableroActual.length) {
+    const P = POSICIONES[ladron];
+    h += `<g transform="translate(${f(P.x)},${f(P.y - 4)})"><title>Ladrón</title><ellipse cx="0" cy="12" rx="12" ry="4" fill="#000" opacity=".3"/><path d="M-10 11 Q-10 -3 0 -5 Q10 -3 10 11 Z" fill="#2b2b33" stroke="#fff6df" stroke-width="2" stroke-linejoin="round"/><circle cx="0" cy="-12" r="7" fill="#2b2b33" stroke="#fff6df" stroke-width="2"/></g>`;
+  }
+  const cand = candidatos();
+  cand.ids.forEach(id => {
+    const sel = seleccion === cand.tipo + id ? " sel" : "";
+    if (cand.tipo === "v" || cand.tipo === "c") {
+      const V = VERTICES[id];
+      const marca = cand.tipo === "c" ? `<circle class="dot anillo" cx="${f(V.x)}" cy="${f(V.y)}" r="15"/>` : `<circle class="dot" cx="${f(V.x)}" cy="${f(V.y)}" r="6"/>`;
+      h += `<g class="cand${sel}" data-t="${cand.tipo}" data-id="${id}"><circle class="hit" cx="${f(V.x)}" cy="${f(V.y)}" r="22"/>${marca}</g>`;
+    } else if (cand.tipo === "h") {
+      const P = POSICIONES[id], pts = puntosHexagono(S - 3, -30);
+      h += `<g class="cand${sel}" data-t="h" data-id="${id}" transform="translate(${f(P.x)},${f(P.y)})"><polygon class="hit" points="${pts}"/><polygon class="hex" points="${pts}"/></g>`;
+    } else {
+      const A = VERTICES[ARISTAS[id].a], B = VERTICES[ARISTAS[id].b];
+      const xy = `x1="${f(A.x)}" y1="${f(A.y)}" x2="${f(B.x)}" y2="${f(B.y)}"`;
+      h += `<g class="cand${sel}" data-t="e" data-id="${id}"><line class="hit" ${xy}/><line class="borde" ${xy}/><line class="lin" ${xy}/></g>`;
+    }
+  });
+  svg.innerHTML = h;
+}
+
+function textoTasas(k) {
+  const ps = portsDe(k).map(pt => pt.tipo);
+  const partes = [ps.includes("generico") ? "3:1 todos" : "4:1 todos"];
+  MATERIALES.forEach(m => { if (ps.includes(m)) partes.push("2:1 " + RECURSOS[m].nombre.toLowerCase()); });
+  return partes.join(" · ");
+}
+
+function textoMotivo(tipo, est) {
+  if (est === "limite") return "Ya usaste todas tus piezas de " + PLURAL[tipo] + " (máximo " + LIMITES[tipo] + ").";
+  return {
+    camino: "No hay lugar libre para un camino conectado a tus caminos o poblados (los poblados rivales cortan el paso).",
+    poblado: "No hay esquinas libres, conectadas a un camino tuyo y a 2 lados de otros poblados.",
+    ciudad: "No tenés poblados para mejorar a ciudad."
+  }[tipo];
+}
+
+function verTablero() {
+  const e = $("svg");
+  const quieto = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (e && e.scrollIntoView) e.scrollIntoView({ behavior: quieto ? "auto" : "smooth", block: "nearest" });
+}
+
+function textoMensaje() {
+  const j = jugadores[turno];
+  if (modoJuego !== "local" && fase !== "fin") {
+    const act = actorEsperado();
+    if (pendiente === "comercio" && comercio) {
+      if (comercio.de === miId && !comercio.contra) return "Hay una oferta en la mesa: esperando respuestas. Podés cancelarla.";
+      if (comercio.de !== miId && comercio.para.includes(miId) && comercio.estado[miId] === "pendiente" && !(comercio.contra && comercio.contra.de === miId)) return "Tenés una oferta de " + jugadores[comercio.de].nombre + " para responder.";
+    }
+    if (act !== null && act !== miId && !jugadores[act].bot) return "Esperando a " + jugadores[act].nombre + "…";
+  }
+  if (j.bot && fase !== "fin" && !tirando && pendiente !== "descartar" && pendiente !== "comercio")
+    return j.nombre + " (bot) está jugando. Mirá el registro de eventos.";
+  if (fase === "inicial") {
+    const luego = paso + 1 < orden.length ? " Luego juega " + jugadores[orden[paso + 1]].nombre + "." : "";
+    return "Colocación inicial, ronda " + (paso < jugadores.length ? 1 : 2) + " de 2. " + j.nombre + ": " +
+      (subfase === "poblado" ? "poné un poblado en una esquina marcada." : "poné un camino pegado a tu poblado.") + luego;
+  }
+  if (fase === "fin") return "Fin de la partida: ganó " + j.nombre + ".";
+  if (pendiente === "descartar") return "Salió 7: los jugadores con más de 7 cartas descartan la mitad.";
+  if (pendiente === "ladron") return j.nombre + ": mové el ladrón. Elegí un hexágono marcado.";
+  if (pendiente === "robar") return j.nombre + ": robando una carta.";
+  if (pendiente === "comercio") return j.nombre + ": hay una oferta en la mesa. Pasale el dispositivo a quien quieras que responda, o cancelá la oferta.";
+  if (pendiente === "caminos") return j.nombre + ": construí " + caminosGratis + (caminosGratis > 1 ? " caminos gratis" : " camino gratis") + " (lugares marcados).";
+  if (tirando) return "Tirando los dados…";
+  if (construyendo) return j.nombre + ": elegí en el tablero dónde poner el " + construyendo + " (lugares marcados), o tocá el botón otra vez para cancelar.";
+  return j.nombre + (haTirado ? ": podés construir o terminar el turno." : ": tirá los dados.");
+}
+
+function abrirFormularioComercio(o) {
+  const j = jugadores[o.k];
+  const ofr = Object.assign(vacio(), o.oferta), ped = Object.assign(vacio(), o.pide);
+  const ajustado = MATERIALES.some(m => ofr[m] > j.recursos[m]);
+  MATERIALES.forEach(m => { ofr[m] = Math.min(ofr[m], j.recursos[m]); });
+  let destino = o.fijo === undefined ? "todos" : o.fijo;
+  const aviso = el("p", "aviso");
+  const enviar = boton(o.boton, "", () => {
+    if (sumaCant(ofr) === 0 || sumaCant(ped) === 0 || MATERIALES.some(m => ofr[m] > 0 && ped[m] > 0) || !alcanza(o.k, ofr)) return;
+    o.enviar(Object.assign({}, ofr), Object.assign({}, ped), destino);
+  });
+  const crear = (obj, esOferta) => {
+    const cont = el("div", "filas-desc"), refs = {};
+    MATERIALES.forEach(m => {
+      const fila = el("div", "fila-desc"), nom = el("span", "nom"), punto = el("i");
+      punto.style.background = RECURSOS[m].punto;
+      nom.append(punto, el("span", "", RECURSOS[m].nombre + (esOferta ? " (tenés " + j.recursos[m] + ")" : "")));
+      const menos = boton("−", "paso", () => { obj[m]--; refrescar(); });
+      const mas = boton("+", "paso", () => { obj[m]++; refrescar(); });
+      menos.setAttribute("aria-label", (esOferta ? "Ofrecer menos " : "Pedir menos ") + RECURSOS[m].nombre);
+      mas.setAttribute("aria-label", (esOferta ? "Ofrecer más " : "Pedir más ") + RECURSOS[m].nombre);
+      const num = el("span", "cant", "0");
+      fila.append(nom, menos, num, mas);
+      cont.append(fila);
+      refs[m] = { menos, mas, num };
+    });
+    return { cont, refs };
+  };
+  const A = crear(ofr, true), B = crear(ped, false);
+  const dests = {}, filaDest = el("div", "opciones");
+  if (o.fijo === undefined) {
+    [["todos", "Todos"]].concat(jugadores.map((x, k) => [k, x.nombre]).filter(([k]) => k !== o.k)).forEach(([v, n]) => {
+      const b = boton(n, "opcion-r", () => { destino = v; refrescar(); });
+      dests[v] = b; filaDest.append(b);
+    });
+  }
+  const refrescar = () => {
+    MATERIALES.forEach(m => {
+      A.refs[m].num.textContent = String(ofr[m]);
+      A.refs[m].menos.disabled = ofr[m] === 0;
+      A.refs[m].mas.disabled = ofr[m] >= j.recursos[m] || ped[m] > 0;      // solo lo que tenés; no el mismo recurso de los dos lados
+      B.refs[m].num.textContent = String(ped[m]);
+      B.refs[m].menos.disabled = ped[m] === 0;
+      B.refs[m].mas.disabled = ped[m] >= 9 || ofr[m] > 0;
+    });
+    Object.keys(dests).forEach(v => dests[v].setAttribute("aria-pressed", String(String(destino) === v)));
+    const so = sumaCant(ofr), sp = sumaCant(ped);
+    aviso.textContent = so === 0 ? "Elegí qué ofrecés." : sp === 0 ? "Elegí qué pedís: no se puede regalar." : "";
+    enviar.disabled = so === 0 || sp === 0;
+  };
+  refrescar();
+  const nodos = [el("p", "", o.intro + (ajustado ? " Ajusté lo que ofrecés a lo que tenés." : "")), el("p", "etiqueta", "Ofrecés"), A.cont, el("p", "etiqueta", "Pedís"), B.cont];
+  if (o.fijo === undefined) nodos.push(el("p", "etiqueta", "Para"), filaDest);
+  nodos.push(aviso, enviar, boton("Cancelar", "secundario", o.cancelar || cerrarModal));
+  abrirModal(o.titulo, nodos, j.color);
+}
+
+function mostrarCartaComprada(k, tipo) {
+  const j = jugadores[k];
+  const cara = el("div", "carta abierta", CARTAS[tipo].nombre);
+  cara.style.background = "#fbf3dc";
+  abrirModal("Compraste una carta", [el("p", "", j.nombre + ", te tocó:"), cara, el("p", "", CARTAS[tipo].desc + (tipo === "victoria" ? "" : " Podés jugarla desde el próximo turno.")),
+    boton("Seguir", "", cerrarModal)], j.color);
+}
+
+function cerrarModal() { $("modal").hidden = true; programarBot(); }
+
+function dibujarLeyenda() {
+  document.getElementById("leyenda").innerHTML = Object.entries(RECURSOS)
+    .map(([k, r]) => `<li><i style="background:${r.punto}"></i>${r.nombre} (${CANTIDAD_HEX[k]})</li>`).join("");
+}
+
+function dibujarRegistro() {
+  const ul = $("lista-registro");
+  ul.innerHTML = "";
+  registro.forEach(r => {
+    const li = el("li");
+    if (r.j !== null && jugadores[r.j]) { const i = el("i"); i.style.background = jugadores[r.j].color; li.append(i); }
+    li.append(el("span", "", r.texto));
+    ul.append(li);
+  });
+}
+
+// --- Candidatos tocables del tablero (solo para quien juega; salen de la vista) ---
+function candidatos() {
+  if (fase === "inicial" || fase === "juego") {
+    if (jugadores[turno].bot || !esMio()) return { tipo: null, ids: [] };
+    if (fase === "juego" && pendiente === "caminos") return { tipo: "e", ids: lugares("camino") };
+    if (fase === "juego" && pendiente === "ladron") return { tipo: "h", ids: tableroActual.map((t, i) => i).filter(i => i !== ladron) };
+    if (fase === "juego" && construyendo && haTirado && !tirando)
+      return { tipo: construyendo === "camino" ? "e" : construyendo === "poblado" ? "v" : "c", ids: lugares(construyendo) };
+  }
+  if (fase !== "inicial") return { tipo: null, ids: [] };
+  if (subfase === "poblado") return { tipo: "v", ids: puroVerticesLibres(GEO, poblados) };
+  const usados = new Set(caminos.map(c => c.e));
+  return { tipo: "e", ids: VERTICES[ultimoPoblado].aristas.filter(e => !usados.has(e)) };
+}
+
+function dibujarCartas() {
+  const cont = $("cartas"), j = jugadores[turno];
+  cont.innerHTML = "";
+  cont.append(el("p", "etiqueta", "Tus cartas de desarrollo"));
+  const mano = el("div", "mano");
+  ["caballero", "caminos", "invento", "monopolio"].forEach(t => {
+    const todas = j.cartas.filter(c => c.tipo === t);
+    if (!todas.length) return;
+    const nuevas = todas.filter(c => c.compra === numTurno).length;
+    const b = boton(CARTAS[t].nombre + " ×" + todas.length + (nuevas ? " (" + nuevas + " nueva" + (nuevas > 1 ? "s" : "") + ")" : ""), "carta-btn", () => abrirCarta(t));
+    b.disabled = !puedeJugarCarta(t);
+    mano.append(b);
+  });
+  if (mano.children.length) cont.append(mano);
+  else cont.append(el("p", "piezas", j.cartas.length ? "No tenés cartas para jugar." : "Todavía no tenés cartas de desarrollo."));
+  const vp = j.secretos;
+  if (vp) cont.append(el("p", "piezas", "Puntos de victoria secretos: " + vp + " (suman solos)."));
+  if (jugoCarta) cont.append(el("p", "piezas", "Ya jugaste una carta de desarrollo este turno."));
+  else if (j.cartas.some(c => c.compra === numTurno)) cont.append(el("p", "piezas", "Las cartas nuevas se pueden jugar desde el próximo turno."));
+}
+
+function dibujarPanel() {
+  const cont = $("jugadores");
+  cont.innerHTML = "";
+  const nombreDe = k => k === null ? "nadie" : jugadores[k].nombre;
+  const ti = el("div", "titulos");
+  ti.append(el("div", "", "Camino más largo (5 o más tramos): " + nombreDe(titulos.camino) + (titulos.camino !== null ? " (" + largos[titulos.camino] + ")" : "")));
+  ti.append(el("div", "", "Ejército más grande (3 o más caballeros): " + nombreDe(titulos.ejercito) + (titulos.ejercito !== null ? " (" + jugadores[titulos.ejercito].caballeros + ")" : "")));
+  cont.append(ti);
+  jugadores.forEach((j, i) => {
+    const t = el("div", "jugador" + (i === turno ? " activo" : ""));
+    t.style.setProperty("--c", j.color);
+    const cab = el("div", "cabecera");
+    cab.append(el("i"), el("strong", "", j.nombre + (modoJuego !== "local" && i === miId ? " (vos)" : "")));
+    t.append(cab);
+    if (modoJuego !== "local") t.append(elPresencia(i));
+    const secretos = j.secretos;                              // solo lo ve quien tiene permiso (uno mismo o modo prueba)
+    t.append(el("div", "puntos", "Puntos: " + (j.puntos !== null ? j.puntos : j.puntosVisibles) + " / 10" +
+      (secretos ? " (" + secretos + " secreto" + (secretos > 1 ? "s" : "") + ")" : "")));
+    if (titulos.camino === i) t.append(el("div", "insignia", "★ Camino más largo"));
+    if (titulos.ejercito === i) t.append(el("div", "insignia", "★ Ejército más grande"));
+    if (j.recursos === null) t.append(el("div", "piezas", "Cartas de recurso: " + j.numCartasRecurso + " (ocultas)"));
+    else MATERIALES.forEach(m => {
+      const chip = el("span", "chip");
+      const punto = el("i");
+      punto.style.background = RECURSOS[m].punto;
+      chip.append(punto, el("span", "", RECURSOS[m].nombre), el("b", "", String(j.recursos[m])));
+      t.append(chip);
+    });
+    t.append(el("div", "piezas", "Caminos " + piezasUsadas(i, "camino") + "/15 · Poblados " + piezasUsadas(i, "poblado") + "/5 · Ciudades " + piezasUsadas(i, "ciudad") + "/4"));
+    t.append(el("div", "piezas", "Cambios con la banca: " + textoTasas(i)));
+    t.append(el("div", "piezas", "Caballeros jugados: " + j.caballeros + " · Camino más largo: " + (largos[i] || 0) + " · Cartas de desarrollo: " + j.numCartasDesarrollo));
+    cont.append(t);
+  });
+}
+
+// Dibuja todo a partir de la vista actual.
+function render() {
+  if (!hayPartida()) return;
+  if (modoJuego === "anfitrion" && red) { presencia = red.presencia(); pausadaRed = red.pausada(); faltanRed = red.faltan(); }
+  if (!tirando) refrescarVista();                       // mientras ruedan los dados se conserva la vista anterior
+  const key = JSON.stringify([tableroActual, puertos]);
+  if (!tirando && key !== tableroKey) { tableroKey = key; dibujar(tableroActual); }
+  resaltar(tirando ? 0 : (sumaActual || 0));
+  if (!tirando) {
+    pintarDado("d1", dados ? dados[0] : 0);
+    pintarDado("d2", dados ? dados[1] : 0);
+    $("resultado").textContent = resultado || "Tirá los dados para empezar el turno.";
+  }
+  $("aviso").textContent = avisoUI || avisoMotor || "";
+  dibujarRegistro();
+  const j = jugadores[turno];
+  const b = $("turno");
+  b.textContent = modoJuego !== "local" && turno === miId && fase !== "fin" ? "¡Es tu turno!" : "Turno de " + j.nombre;
+  b.style.setProperty("--c", j.color);
+  const inicial = fase === "inicial", jugando = fase === "juego", libre = jugando && !pendiente && !j.bot && esMio();
+  $("zona-dados").hidden = inicial;
+  $("tirar").disabled = !libre || haTirado || tirando;
+  $("terminar").disabled = !libre || !haTirado || tirando;
+  $("mezclar").disabled = poblados.length > 0 || caminos.length > 0 || !esMio();
+  const puedeCons = libre && haTirado && !tirando;
+  $("construir").hidden = !puedeCons;
+  if (!puedeCons) construyendo = null;
+  const motivos = [];
+  ["camino", "poblado", "ciudad"].forEach(t => {
+    const est = puedeCons ? estadoConstruir(t) : "no";
+    $("b-" + t).disabled = est !== "ok";
+    $("b-" + t).setAttribute("aria-pressed", String(construyendo === t));
+    if (est === "limite" || est === "lugar") motivos.push(textoMotivo(t, est));
+  });
+  const estCarta = !puedeCons ? "no" : !mazoRestante ? "mazo" : alcanza(turno, COSTOS.carta) ? "ok" : "recursos";
+  $("comprar-carta").disabled = estCarta !== "ok";
+  $("info-mazo").textContent = "Cuesta 1 lana + 1 trigo + 1 piedra. Quedan " + mazoRestante + " cartas en el mazo.";
+  if (estCarta === "mazo") motivos.push("Ya no quedan cartas de desarrollo.");
+  $("cartas").hidden = !(libre && !tirando && (vista === turno || modoPrueba));
+  if (!$("cartas").hidden) dibujarCartas();
+  $("proponer").disabled = totalCartas(turno) === 0;
+  $("motivo").textContent = motivos.join(" ");
+  $("mensaje").textContent = textoMensaje();
+  dibujarOferta();
+  dibujarPanel();
+  dibujarConstruccion();
+  $("controles-bot").hidden = !jugadores.some(x => x.bot) || modoJuego === "invitado";
+  dibujarOnline();
+  if (fase === "fin" && $("victoria").hidden) mostrarVictoria();
+  atender();
+  programarBot();
+}
+
+function mostrarVictoria() {
+  const w = jugadores[turno];
+  $("vic-titulo").textContent = "¡Ganó " + w.nombre + "!";
+  const ocultas = jugadores.map(j => [j.nombre, j.secretos]).filter(x => x[1]);
+  $("vic-texto").textContent = "Llegó a " + w.puntos + " puntos. Puntajes: " + jugadores.map(j => j.nombre + " " + j.puntos).join(" · ") + "." +
+    (ocultas.length ? " Puntos de victoria que estaban ocultos: " + ocultas.map(x => x[0] + " " + x[1]).join(", ") + "." : "");
+  $("victoria").hidden = false;
+  $("otra").focus();
+}
+
+// Ventanas que hay que mostrar según lo que pide el motor (descartar, elegir víctima, contraoferta) y pases del dispositivo.
+function atender() {
+  if (!hayPartida() || tirando || !$("modal").hidden || fase !== "juego") return;
+  if (modoJuego !== "local") { atenderOnline(); return; }
+  const actor = pendiente === "descartar" && descartes[0] ? descartes[0].k : turno;
+  const pide = pendiente === "descartar" || pendiente === "robar" || (pendiente === "comercio" && comercio && comercio.contra);
+  const quien = pendiente === "comercio" && comercio && comercio.contra ? comercio.de : actor;
+  if (jugadores[quien].bot) return;
+  if (vista !== quien) { pasarA(quien); return; }
+  if (!pide) return;
+  if (pendiente === "descartar") mostrarDescarte(quien, descartes[0].deben);
+  else if (pendiente === "robar") mostrarRobo();
+  else mostrarContra();
+}
+
+// --- Pasar el dispositivo ---
+function pasarA(k, siguiente) {
+  if (modoJuego !== "local") { if (siguiente) siguiente(); return; }      // en línea cada uno ve su propia pantalla: no hay pase
+  // No hace falta pasar el dispositivo si es un bot, si ya lo tiene esa persona, si hay una sola persona o en modo prueba.
+  if (vista === k || jugadores[k].bot || contarHumanos() <= 1 || modoPrueba) {
+    const cambio = !jugadores[k].bot && vista !== k;
+    if (!jugadores[k].bot) vista = k;
+    if (cambio) refrescarVista();
+    if (siguiente) siguiente();
+    if (cambio) render();
+    return;
+  }
+  vista = null;
+  refrescarVista();
+  $("cartas").hidden = true;
+  dibujarPanel();
+  const j = jugadores[k];
+  abrirModal("Pasale el dispositivo a " + j.nombre, [
+    el("p", "", "Cuando " + j.nombre + " lo tenga en la mano, que toque el botón. Así nadie ve las cartas de los demás."),
+    boton("Soy " + j.nombre + ": ver mis cartas", "", () => {
+      cerrarModal(); vista = k; refrescarVista();
+      if (siguiente) siguiente();
+      render();
+    })
+  ], j.color, true);
+}
+
+// --- Dados ---
+function tirarDados() {
+  if (!hayPartida() || tirando || haTirado || fase !== "juego" || pendiente) return;
+  if (modoJuego === "invitado") { if (turno === miId) enviar({ tipo: "tirar" }); return; }
+  if (modoJuego === "anfitrion" && !jugadores[turno].bot && turno !== miId) return;
+  const actor = turno;
+  tirando = true;
+  avisoUI = "";
+  resaltar(0);
+  render();                                         // muestra "Tirando…" con la vista anterior
+  $("resultado").textContent = "Tirando…";
+  const r = aplicarAccion(estado, actor, { tipo: "tirar" });   // el motor decide los dados; la animación es solo visual
+  if (!r.ok) { tirando = false; if (!jugadores[actor].bot) avisoUI = r.error; render(); return; }
+  fusionar(estado, r.estado);
+  if (modoJuego === "anfitrion") { red.difundir(); guardarAutomatico(); }
+  const dadosEl = [$("d1"), $("d2")];
+  dadosEl.forEach(d => d.classList.add("rueda"));
+  let ticks = 0;
+  const reloj = setInterval(() => {
+    pintarDado("d1", 1 + Math.floor(Math.random() * 6));
+    pintarDado("d2", 1 + Math.floor(Math.random() * 6));
+    if (++ticks < 12) return;
+    clearInterval(reloj);
+    dadosEl.forEach(d => d.classList.remove("rueda"));
+    tirando = false;
+    render();                                       // muestra el resultado y lo que haya que resolver (7, etc.)
+  }, 80);
+}
+
+// --- Construcción en el tablero ---
+function construirUI(t, id) {
+  const tipo = { e: "camino", v: "poblado", c: "ciudad" }[t];
+  construyendo = null;
+  enviar({ tipo: "construir", construccion: tipo, id }, turno);
+}
+
+// --- Cartas de desarrollo ---
+function comprarCarta() { enviar({ tipo: "comprarCarta" }, turno); }
+
+function abrirCarta(tipo) {
+  if (!puedeJugarCarta(tipo)) return;
+  const j = jugadores[turno], c = CARTAS[tipo];
+  const desc = el("p", "", c.desc);
+  const cancelar = boton("Cancelar", "secundario", cerrarModal);
+  if (tipo === "caballero" || tipo === "caminos") {
+    abrirModal(c.nombre, [desc, boton("Jugar " + c.nombre, "", () => { cerrarModal(); enviar({ tipo: "jugarCarta", carta: tipo }, turno); verTablero(); }), cancelar], j.color);
+    return;
+  }
+  if (tipo === "monopolio") {
+    let elegido = null;
+    const fila = el("div", "opciones"), bt = {};
+    const jugar = boton("Jugar Monopolio", "", () => {
+      if (!elegido || !puedeJugarCarta(tipo)) return;
+      cerrarModal();
+      enviar({ tipo: "jugarCarta", carta: "monopolio", recurso: elegido }, turno);
+    });
+    const refrescar = () => {
+      MATERIALES.forEach(m => bt[m].setAttribute("aria-pressed", String(elegido === m)));
+      jugar.disabled = !elegido;
+      jugar.textContent = elegido ? "Jugar Monopolio de " + RECURSOS[elegido].nombre.toLowerCase() : "Jugar Monopolio";
+    };
+    MATERIALES.forEach(m => {
+      const b = boton(RECURSOS[m].nombre, "opcion-r", () => { elegido = elegido === m ? null : m; refrescar(); });
+      b.setAttribute("aria-pressed", "false");
+      bt[m] = b; fila.append(b);
+    });
+    refrescar();
+    abrirModal(c.nombre, [desc, fila, jugar, cancelar], j.color);
+    return;
+  }
+  // Invento: 2 recursos cualesquiera de la banca
+  const sel = Object.fromEntries(MATERIALES.map(m => [m, 0]));
+  const cuenta = el("p", "puntos"), filas = el("div", "filas-desc"), refs = {};
+  const jugar = boton("Jugar Invento", "", () => {
+    if (MATERIALES.reduce((t, m) => t + sel[m], 0) !== 2 || !puedeJugarCarta(tipo)) return;
+    cerrarModal();
+    enviar({ tipo: "jugarCarta", carta: "invento", recursos: Object.assign({}, sel) }, turno);
+  });
+  const refrescar = () => {
+    const tot = MATERIALES.reduce((t, m) => t + sel[m], 0);
+    MATERIALES.forEach(m => { refs[m].num.textContent = String(sel[m]); refs[m].menos.disabled = sel[m] === 0; refs[m].mas.disabled = tot >= 2; });
+    cuenta.textContent = "Elegidos: " + tot + " de 2";
+    jugar.disabled = tot !== 2;
+  };
+  MATERIALES.forEach(m => {
+    const fila = el("div", "fila-desc"), nom = el("span", "nom"), punto = el("i");
+    punto.style.background = RECURSOS[m].punto;
+    nom.append(punto, el("span", "", RECURSOS[m].nombre));
+    const menos = boton("−", "paso", () => { sel[m]--; refrescar(); });
+    const mas = boton("+", "paso", () => { sel[m]++; refrescar(); });
+    menos.setAttribute("aria-label", "Un " + RECURSOS[m].nombre + " menos");
+    mas.setAttribute("aria-label", "Un " + RECURSOS[m].nombre + " más");
+    const num = el("span", "cant", "0");
+    fila.append(nom, menos, num, mas);
+    filas.append(fila);
+    refs[m] = { menos, mas, num };
+  });
+  refrescar();
+  abrirModal(c.nombre, [desc, cuenta, filas, jugar, cancelar], j.color);
+}
+
+// --- El 7: descartar, ladrón y robo ---
+function mostrarDescarte(k, deben) {
+  const j = jugadores[k];
+  const sel = Object.fromEntries(MATERIALES.map(m => [m, 0]));
+  const info = el("p", "", j.nombre + ": tenés " + totalCartas(k) + " cartas. Elegí " + deben + " para descartar.");
+  const cuenta = el("p", "puntos");
+  const filas = el("div", "filas-desc");
+  const refs = {};
+  const ok = boton("Descartar", "", () => {
+    if (MATERIALES.reduce((t, m) => t + sel[m], 0) !== deben) return;
+    cerrarModal();
+    enviar({ tipo: "descartar", recursos: Object.assign({}, sel) }, k);
+  });
+  function refrescar() {
+    const tot = MATERIALES.reduce((t, m) => t + sel[m], 0);
+    MATERIALES.forEach(m => {
+      refs[m].num.textContent = String(sel[m]);
+      refs[m].menos.disabled = sel[m] === 0;
+      refs[m].mas.disabled = sel[m] >= j.recursos[m] || tot >= deben;
+    });
+    cuenta.textContent = "Elegidas: " + tot + " de " + deben;
+    ok.disabled = tot !== deben;
+  }
+  MATERIALES.forEach(m => {
+    const fila = el("div", "fila-desc");
+    const nom = el("span", "nom");
+    const punto = el("i");
+    punto.style.background = RECURSOS[m].punto;
+    nom.append(punto, el("span", "", RECURSOS[m].nombre + " (tenés " + j.recursos[m] + ")"));
+    const menos = boton("−", "paso", () => { sel[m]--; refrescar(); });
+    const mas = boton("+", "paso", () => { sel[m]++; refrescar(); });
+    menos.setAttribute("aria-label", "Descartar menos " + RECURSOS[m].nombre);
+    mas.setAttribute("aria-label", "Descartar una más de " + RECURSOS[m].nombre);
+    const num = el("span", "cant", "0");
+    fila.append(nom, menos, num, mas);
+    filas.append(fila);
+    refs[m] = { menos, mas, num };
+  });
+  refrescar();
+  abrirModal("Descartar cartas", [info, cuenta, filas, ok], j.color);
+}
+
+function mostrarRobo() {
+  if (victimas.length === 1) { mostrarVueltaCarta(victimas[0]); return; }
+  abrirModal("¿A quién le robás?", [el("p", "", jugadores[turno].nombre + ": elegí a un jugador con poblado o ciudad en ese hexágono.")]
+    .concat(victimas.map(k => boton(jugadores[k].nombre + " (" + jugadores[k].numCartasRecurso + " cartas)", "opcion-r", () => mostrarVueltaCarta(k)))), jugadores[turno].color);
+}
+
+// La carta se elige al azar en el motor y recién se muestra cuando el que roba la da vuelta.
+function mostrarVueltaCarta(k) {
+  const ladronJ = jugadores[turno], victima = jugadores[k];
+  const carta = el("div", "carta", "?");
+  const accion = el("div", "acciones");
+  const dar = boton("Dar vuelta la carta", "", () => {
+    enviar({ tipo: "robar", de: k }, turno, r => {
+      if (!r.ok) return;
+      const ev = r.eventos.find(x => x.tipo === "cartaRobada");
+      carta.textContent = RECURSOS[ev.recurso].nombre;
+      carta.className = "carta abierta";
+      carta.style.background = RECURSOS[ev.recurso].punto;
+      accion.innerHTML = "";
+      accion.append(boton("Seguir", "", cerrarModal));
+      accion.querySelector("button").focus();
+    });
+  });
+  accion.append(dar);
+  abrirModal("Robar una carta", [el("p", "", ladronJ.nombre + " le roba una carta al azar a " + victima.nombre + "."), carta, accion], ladronJ.color);
+}
+
+// --- Comercio con la banca ---
+function abrirComercio() {
+  if (fase !== "juego" || !haTirado || tirando || pendiente || !esMio()) return;
+  const j = jugadores[turno];
+  let dar = null, recibir = null;
+  const hay = MATERIALES.some(m => j.recursos[m] >= tasa(turno, m));
+  const info = el("p", "", hay ? "Elegí qué das y qué recibís. La tasa depende de tus puertos." : "No tenés recursos suficientes para cambiar: necesitás 4 iguales (menos si tenés puertos).");
+  const bd = {}, br = {};
+  const filaDar = el("div", "opciones"), filaRec = el("div", "opciones");
+  const ok = boton("Cambiar", "", () => {
+    if (!dar || !recibir || j.recursos[dar] < tasa(turno, dar)) return;
+    cerrarModal();
+    enviar({ tipo: "bancaCambio", dar, recibir }, turno);
+  });
+  const cancelar = boton("Cancelar", "secundario", cerrarModal);
+  function refrescar() {
+    MATERIALES.forEach(m => {
+      bd[m].disabled = j.recursos[m] < tasa(turno, m);
+      bd[m].setAttribute("aria-pressed", String(dar === m));
+      br[m].disabled = dar === m;
+      br[m].setAttribute("aria-pressed", String(recibir === m));
+    });
+    ok.disabled = !dar || !recibir;
+    ok.textContent = dar && recibir ? "Cambiar " + tasa(turno, dar) + " " + RECURSOS[dar].nombre.toLowerCase() + " por 1 " + RECURSOS[recibir].nombre.toLowerCase() : "Cambiar";
+  }
+  MATERIALES.forEach(m => {
+    const b1 = boton("", "opcion-r", () => { dar = dar === m ? null : m; if (recibir === dar) recibir = null; refrescar(); });
+    b1.append(el("span", "", RECURSOS[m].nombre), el("span", "piezas", tasa(turno, m) + ":1 · tenés " + j.recursos[m]));
+    b1.setAttribute("aria-pressed", "false");
+    bd[m] = b1; filaDar.append(b1);
+    const b2 = boton("", "opcion-r", () => { recibir = recibir === m ? null : m; refrescar(); });
+    b2.append(el("span", "", RECURSOS[m].nombre));
+    b2.setAttribute("aria-pressed", "false");
+    br[m] = b2; filaRec.append(b2);
+  });
+  refrescar();
+  abrirModal("Comerciar con la banca", [info, el("p", "etiqueta", "Das"), filaDar, el("p", "etiqueta", "Recibís 1"), filaRec, ok, cancelar], j.color);
+}
+
+// --- Comercio entre jugadores ---
+function proponerComercio() {
+  if (fase !== "juego" || !haTirado || tirando || pendiente || !esMio() || (vista !== turno && !modoPrueba) || totalCartas(turno) === 0) return;
+  abrirFormularioComercio({
+    k: turno, titulo: "Proponer comercio", boton: "Enviar oferta",
+    intro: "Elegí qué ofrecés (solo lo que tenés) y qué pedís, y a quién se lo proponés.",
+    enviar: (ofr, ped, dest) => { cerrarModal(); enviar({ tipo: "proponerComercio", oferta: ofr, pide: ped, para: dest }, turno); }
+  });
+}
+
+function dibujarOferta() {
+  const cont = $("oferta");
+  cont.innerHTML = "";
+  cont.hidden = !comercio;
+  if (!comercio) return;
+  const c = comercio;
+  cont.append(el("p", "etiqueta", "Oferta en la mesa"));
+  cont.append(el("p", "", jugadores[c.de].nombre + " da " + textoCant(c.oferta) + " y pide " + textoCant(c.pide) + "."));
+  c.para.forEach(k => {
+    const fila = el("div", "fila-desc"), nom = el("span", "nom");
+    nom.append(el("span", "", jugadores[k].nombre + ": " + (c.estado[k] === "pendiente" ? "sin responder" : c.estado[k])));
+    fila.append(nom);
+    if (c.estado[k] === "pendiente" && !jugadores[k].bot && modoJuego === "local") fila.append(boton("Pasar a " + jugadores[k].nombre, "secundario", () => pasarA(k, () => mostrarOferta(k))));
+    cont.append(fila);
+  });
+  if (modoJuego === "local" || c.de === miId) cont.append(boton("Cancelar oferta", "secundario", () => enviar({ tipo: "cancelarComercio" }, c.de)));
+}
+
+function mostrarOferta(k) {
+  const c = comercio, j = jugadores[k], de = jugadores[c.de];
+  const puede = alcanza(k, c.pide);
+  const nodos = [
+    el("p", "", de.nombre + " te da " + textoCant(c.oferta) + " y te pide " + textoCant(c.pide) + "."),
+    el("p", "piezas", "Tus cartas: " + MATERIALES.map(m => RECURSOS[m].nombre.toLowerCase() + " " + j.recursos[m]).join(" · "))
+  ];
+  if (!puede) nodos.push(el("p", "aviso", "No tenés los recursos que te piden, así que no podés aceptar."));
+  const ac = boton("Aceptar", "", () => { cerrarModal(); enviar({ tipo: "responderComercio", respuesta: "aceptar" }, k); });
+  ac.disabled = !puede;
+  nodos.push(ac, boton("Rechazar", "secundario", () => { cerrarModal(); enviar({ tipo: "responderComercio", respuesta: "rechazar" }, k); }),
+    boton("Contraofertar", "secundario", () => contraofertar(k)));
+  abrirModal("Oferta de " + de.nombre + " para " + j.nombre, nodos, j.color);
+}
+
+function contraofertar(k) {
+  const c = comercio, de = jugadores[c.de];
+  abrirFormularioComercio({
+    k, fijo: c.de, titulo: "Contraoferta para " + de.nombre, boton: "Enviar contraoferta",
+    oferta: c.pide, pide: c.oferta,
+    intro: "Valores de la oferta con los lados invertidos. Modificalos y enviá tu contraoferta a " + de.nombre + ".",
+    cancelar: () => mostrarOferta(k),
+    enviar: (ofr, ped) => { cerrarModal(); enviar({ tipo: "contraoferta", oferta: ofr, pide: ped }, k); }
+  });
+}
+
+function mostrarContra() {
+  const c = comercio, ct = c.contra, a = jugadores[c.de], b = jugadores[ct.de];
+  const puede = alcanza(c.de, ct.pide);
+  const nodos = [
+    el("p", "", b.nombre + " te contraoferta: te da " + textoCant(ct.oferta) + " y te pide " + textoCant(ct.pide) + "."),
+    el("p", "piezas", "Tus cartas: " + MATERIALES.map(m => RECURSOS[m].nombre.toLowerCase() + " " + a.recursos[m]).join(" · "))
+  ];
+  if (!puede) nodos.push(el("p", "aviso", "No tenés los recursos que te piden, así que no podés aceptar."));
+  const ac = boton("Aceptar", "", () => { cerrarModal(); enviar({ tipo: "responderContra", respuesta: "aceptar" }, c.de); });
+  ac.disabled = !puede;
+  nodos.push(ac, boton("Rechazar", "secundario", () => { cerrarModal(); enviar({ tipo: "responderContra", respuesta: "rechazar" }, c.de); }));
+  abrirModal("Contraoferta de " + b.nombre, nodos, a.color);
+}
+
+// ====================== BOTS: el controlador pide la jugada y la manda al motor ======================
+function programarBot() {
+  if (!estado || temporizador !== null || pausa || pausadaRed || modoJuego === "invitado" || (estado.fase !== "inicial" && estado.fase !== "juego") || !estado.jugadores.some(j => j.bot)) return;
+  if (tirando || !$("modal").hidden || botActor(estado) === null) return;
+  temporizador = setTimeout(botTick, VELOCIDADES[velocidad].ms);
+}
+
+function botTick() {
+  temporizador = null;
+  if (!estado || pausa || pausadaRed || modoJuego === "invitado" || tirando || (estado.fase !== "inicial" && estado.fase !== "juego") || !$("modal").hidden) return;
+  let j = botSiguienteJugada(estado, nivelBot);
+  if (j) {
+    if (estado.fase === "juego" && j.accion.tipo !== "tirar" && ++botAcciones > 40 && estado.haTirado && !estado.pendiente && j.jugadorId === estado.turno)
+      j = { jugadorId: j.jugadorId, accion: { tipo: "terminarTurno" } };          // por seguridad: ningún turno es infinito
+    if (j.accion.tipo === "tirar") { botAcciones = 0; tirarDados(); }
+    else {
+      const r = enviar(j.accion, j.jugadorId);
+      if (!r.ok) { const em = botJugadaDeEmergencia(estado); if (em) enviar(em.accion, em.jugadorId); }
+    }
+  }
+  programarBot();
+}
+
+// ====================== Guardar y cargar la partida ======================
+function abrirPersistencia() {
+  const ta = el("textarea", "json");
+  ta.value = estado ? estadoAJSON(estado) : "";
+  ta.setAttribute("aria-label", "Texto de la partida (JSON)");
+  const msg = el("p", "aviso");
+  const copiar = boton("Copiar el texto", "secundario", () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) navigator.clipboard.writeText(ta.value).then(() => { msg.textContent = "Copiado."; }, () => { msg.textContent = "No se pudo copiar: seleccioná el texto y copialo a mano."; });
+    else msg.textContent = "Seleccioná el texto y copialo a mano.";
+  });
+  const cargar = boton("Cargar este texto", "", () => {
+    try { cargarPartida(ta.value); cerrarModal(); }
+    catch (x) { msg.textContent = x.message; }
+  });
+  abrirModal("Guardar o cargar la partida", [el("p", "", "Este texto es la partida completa. Copialo para guardarla, o pegá uno y tocá \"Cargar\"."), ta, msg, copiar, cargar, boton("Cerrar", "secundario", cerrarModal)]);
+}
+
+function cargarPartida(texto) {
+  const nuevo = estadoDesdeJSON(texto);
+  modoJuego = "local"; red = null; vistaRed = null;
+  if (temporizador !== null) { clearTimeout(temporizador); temporizador = null; }
+  estado = nuevo;
+  construyendo = null; seleccion = null; tirando = false; pausa = false; avisoUI = ""; tableroKey = null;
+  $("pausa-bot").textContent = "Pausar bots"; $("pausa-bot").setAttribute("aria-pressed", "false");
+  vista = estado.jugadores.findIndex(j => !j.bot); if (vista < 0) vista = null;
+  if (vista !== null && !estado.jugadores[estado.turno].bot && estado.fase !== "fin") vista = estado.turno;
+  $("victoria").hidden = true;
+  $("inicio").hidden = true;
+  $("juego").hidden = false;
+  $("sub").textContent = estado.jugadores.every(j => j.bot) ? "Solo bots: mirá la partida" : "Partida en curso";
+  render();
+}
+
+// ====================== Pantalla inicial ======================
+function empezar() {
+  modoJuego = "local"; red = null; vistaRed = null;
+  let nb = 0;
+  const inputs = Array.from($("nombres").querySelectorAll("input"));
+  const config = inputs.map((inp, i) => {
+    const bot = tiposJugador[i] === "bot";
+    return { bot, nombre: bot ? "Bot " + (++nb) : (inp.value.trim() || "Jugador " + (i + 1)) };
+  });
+  if (temporizador !== null) { clearTimeout(temporizador); temporizador = null; }
+  estado = crearPartida({ jugadores: config });
+  construyendo = null; seleccion = null; tirando = false; pausa = false; avisoUI = ""; botAcciones = 0; tableroKey = null;
+  vista = estado.jugadores.findIndex(j => !j.bot); if (vista < 0) vista = null;
+  $("pausa-bot").textContent = "Pausar bots"; $("pausa-bot").setAttribute("aria-pressed", "false");
+  cerrarModal();
+  $("victoria").hidden = true;
+  $("inicio").hidden = true;
+  $("juego").hidden = false;
+  $("sub").textContent = estado.jugadores.every(j => j.bot) ? "Solo bots: mirá la partida" : "Partida en curso";
+  render();
+}
+
+// ====================== MODO ONLINE ======================
+const CLAVE_GUARDADO = "sapan-partida-anfitrion", CLAVE_NOMBRE = "sapan-nombre";
+const temporizadorRed = { poner: (f, ms) => setTimeout(f, ms), quitar: id => clearTimeout(id) };
+const transporte = () => transportePeerJS(typeof Peer === "undefined" ? undefined : Peer);
+let intentoSala = 0;
+
+function ocultarPantallas() { ["portada", "inicio", "sala-crear", "sala-unir", "sala-espera"].forEach(id => { $(id).hidden = true; }); }
+function guardarNombre(n) { try { localStorage.setItem(CLAVE_NOMBRE, n); } catch (x) { /* sin almacenamiento */ } }
+function nombreGuardado() { try { return localStorage.getItem(CLAVE_NOMBRE) || ""; } catch (x) { return ""; } }
+function linkDeSala(codigo) { return String(location.href).split("#")[0].split("?")[0] + "?sala=" + codigo; }
+function copiarTexto(texto, aviso) {
+  if (typeof navigator !== "undefined" && navigator.clipboard) navigator.clipboard.writeText(texto).then(() => { aviso.textContent = "Copiado."; }, () => { aviso.textContent = "No se pudo copiar: seleccionalo y copialo a mano."; });
+  else aviso.textContent = "Seleccionalo y copialo a mano.";
+}
+
+// El anfitrión guarda la partida en su navegador después de cada cambio, para poder retomarla si cierra por error.
+function guardarAutomatico() {
+  if (modoJuego !== "anfitrion" || !estado || !red) return;
+  if (estado.fase === "fin") { borrarGuardado(); return; }
+  try {
+    localStorage.setItem(CLAVE_GUARDADO, JSON.stringify({ version: 1, codigo: codigoSala, nivel: nivelBot, nombres: red.sala.humanos.map(h => h.nombre), bots: red.sala.bots, estado }));
+  } catch (x) { /* sin almacenamiento */ }
+}
+function borrarGuardado() { try { localStorage.removeItem(CLAVE_GUARDADO); } catch (x) { /* nada */ } }
+function leerGuardado() {
+  try {
+    const t = localStorage.getItem(CLAVE_GUARDADO);
+    if (!t) return null;
+    const g = JSON.parse(t);
+    estadoDesdeJSON(JSON.stringify(g.estado));
+    return redCodigoValido(g.codigo) && Array.isArray(g.nombres) ? g : null;
+  } catch (x) { return null; }
+}
+function actualizarBotonRetomar() {
+  const g = leerGuardado();
+  $("retomar").hidden = !g;
+  if (g) $("retomar").textContent = "Retomar la partida guardada (sala " + g.codigo + ")";
+}
+
+function elPresencia(i) {
+  const est = presencia[i] || "conectado";
+  const textos = { anfitrion: "Anfitrión · conectado", conectado: "Conectado", reconectando: "Reconectando…", desconectado: "Desconectado", bot: "Bot" };
+  const clase = { anfitrion: "ok", conectado: "ok", reconectando: "rec", desconectado: "off", bot: "bot" }[est] || "ok";
+  const d = el("div", "piezas presencia");
+  d.append(el("span", "pto " + clase), el("span", "", textos[est] || est));
+  return d;
+}
+
+// Quién tiene que actuar ahora (para mostrar "Esperando a ...").
+function actorEsperado() {
+  if (pendiente === "descartar" && descartes[0]) return descartes[0].k;
+  if (pendiente === "comercio" && comercio) {
+    if (comercio.contra) return comercio.de;
+    const k = comercio.para.find(x => comercio.estado[x] === "pendiente" && !jugadores[x].bot);
+    return k !== undefined ? k : comercio.de;
+  }
+  return turno;
+}
+
+// En línea, cada uno ve solo lo que le toca: las ventanas se abren solas cuando el motor le pide algo a este jugador.
+function atenderOnline() {
+  if (pausadaRed) return;
+  if (pendiente === "descartar" && descartes[0] && descartes[0].k === miId) mostrarDescarte(miId, descartes[0].deben);
+  else if (pendiente === "robar" && turno === miId) mostrarRobo();
+  else if (pendiente === "comercio" && comercio) {
+    if (comercio.contra && comercio.de === miId) mostrarContra();
+    else if (comercio.para.includes(miId) && comercio.estado[miId] === "pendiente" && !(comercio.contra && comercio.contra.de === miId)) mostrarOferta(miId);
+  }
+}
+
+function dibujarOnline() {
+  const on = modoJuego !== "local";
+  if (modoJuego === "anfitrion" && red) { presencia = red.presencia(); pausadaRed = red.pausada(); faltanRed = red.faltan(); }
+  $("estado-conexion").hidden = !on;
+  if (on) {
+    const ok = conexionEstado === "conectado";
+    $("estado-conexion").textContent = "● " + (ok ? "Conectado" : conexionEstado === "conectando" ? "Conectando…" : "Reconectando…") + " · Sala " + codigoSala + (modoJuego === "anfitrion" ? " (sos el anfitrión)" : "");
+    $("estado-conexion").className = "conexion " + (ok ? "ok" : "mal");
+  }
+  const enPausa = on && pausadaRed && fase !== "fin";
+  $("pausa-red").hidden = !enPausa;
+  if (enPausa) {
+    $("pausa-texto").textContent = "Esperando que vuelva: " + faltanRed.join(", ") + ". Puede volver con el mismo link y el mismo nombre.";
+    $("pausa-terminar").hidden = modoJuego !== "anfitrion";
+  }
+  $("guardar").hidden = on;
+  $("modo-prueba").hidden = on;
+  $("nueva").textContent = modoJuego === "anfitrion" ? "Cerrar la sala" : modoJuego === "invitado" ? "Salir de la partida" : "Nueva partida";
+  if (modoJuego === "anfitrion" && fase === "fin") borrarGuardado();
+}
+
+function volverAPortada(mensaje) {
+  intentoSala++;
+  if (temporizador !== null) { clearTimeout(temporizador); temporizador = null; }
+  if (red) { if (modoJuego === "anfitrion") red.cerrar("El anfitrión cerró la sala."); else if (red.salir) red.salir(); }
+  if (modoJuego === "anfitrion") borrarGuardado();
+  red = null; modoJuego = "local"; estado = null; vistaRed = null; vistaPendiente = null; VISTA = null;
+  presencia = []; pausadaRed = false; faltanRed = []; conexionEstado = "conectado"; codigoSala = "";
+  tirando = false; construyendo = null; seleccion = null; avisoUI = ""; tableroKey = null;
+  $("modal").hidden = true; $("juego").hidden = true; $("victoria").hidden = true; $("pausa-red").hidden = true; $("estado-conexion").hidden = true;
+  ocultarPantallas();
+  $("portada").hidden = false;
+  $("sub").textContent = "Elegí cómo querés jugar";
+  $("aviso-red").textContent = mensaje || "";
+  actualizarBotonRetomar();
+}
+
+// ---------- Sala de espera ----------
+function dibujarSala(sala) {
+  const lista = modoJuego === "anfitrion" ? $("lista-sala") : $("lista-espera");
+  lista.innerHTML = "";
+  sala.humanos.forEach((h, i) => {
+    const li = el("li");
+    const clase = h.estado === "anfitrion" || h.estado === "conectado" ? "ok" : h.estado === "reconectando" ? "rec" : "off";
+    const yo = (modoJuego === "anfitrion" && i === 0) || (modoJuego === "invitado" && h.nombre.toLowerCase() === nombreOnline.toLowerCase());
+    li.append(el("span", "pto " + clase), el("span", "", h.nombre + (i === 0 ? " (anfitrión)" : "") + (yo ? " (vos)" : "")));
+    lista.append(li);
+  });
+  for (let q = 0; q < sala.lugaresLibres; q++) { const li = el("li"); li.append(el("span", "pto off"), el("span", "", "Esperando a un jugador…")); lista.append(li); }
+  for (let b = 1; b <= sala.bots; b++) { const li = el("li"); li.append(el("span", "pto bot"), el("span", "", "Bot " + b + " (bot)")); lista.append(li); }
+  if (modoJuego === "anfitrion" && red) {
+    document.querySelectorAll(".sala-n").forEach(x => x.setAttribute("aria-pressed", String(Number(x.dataset.n) === sala.n)));
+    document.querySelectorAll(".sala-bots").forEach(x => { x.setAttribute("aria-pressed", String(Number(x.dataset.b) === sala.bots)); x.disabled = Number(x.dataset.b) > sala.n - 1; });
+    document.querySelectorAll(".sala-niv").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.n === sala.nivel)));
+    $("crear-nivel").hidden = sala.bots === 0;
+    const puede = red.puedeEmpezar();
+    $("sala-empezar").disabled = !puede;
+    $("crear-estado").textContent = puede ? "Están todos: tocá Empezar." : sala.lugaresLibres ? "Faltan " + sala.lugaresLibres + " jugador" + (sala.lugaresLibres > 1 ? "es" : "") + " por entrar." : "";
+  } else if (modoJuego === "invitado") {
+    $("espera-codigo").textContent = sala.codigo;
+    $("espera-detalle").textContent = sala.n + " jugadores" + (sala.bots ? " (" + sala.bots + " bot" + (sala.bots > 1 ? "s" : "") + ")" : "") + ". Esperando que el anfitrión empiece…";
+  }
+}
+
+function cambiarConfig(cfg) {
+  if (!red || modoJuego !== "anfitrion" || hayPartida()) return;
+  const s = red.sala, n = cfg.n === undefined ? s.n : cfg.n;
+  let bots = cfg.bots === undefined ? s.bots : cfg.bots;
+  if (bots > n - 1) bots = n - 1;
+  if (!red.configurar(Object.assign({}, cfg, { n, bots }))) { $("crear-estado").textContent = "No se puede: ya hay " + s.humanos.length + " personas en la sala."; return; }
+  dibujarSala(red.publica());
+}
+
+function errorRed(err) {
+  if (err.recuperable) {
+    conexionEstado = "reconectando";
+    temporizadorRed.poner(() => { conexionEstado = "conectado"; if (hayPartida()) render(); }, 8000);
+    if (hayPartida()) render(); else if (!$("sala-crear").hidden) $("crear-estado").textContent = err.mensaje;
+    return;
+  }
+  avisoUI = err.mensaje;
+  if (hayPartida()) render(); else if (!$("sala-crear").hidden) $("crear-estado").textContent = err.mensaje;
+}
+
+// Una jugada de un invitado: el anfitrión la valida con el motor usando el asiento de esa conexión.
+function aplicarRemoto(asiento, accion) {
+  if (!estado) return { ok: false, error: "La partida todavía no empezó." };
+  const r = aplicarAccion(estado, asiento, accion);
+  if (r.ok) { fusionar(estado, r.estado); if (!tirando) render(); guardarAutomatico(); }
+  return r;
+}
+
+function irCrearSala() {
+  if (modoJuego !== "local") return;
+  const intento = ++intentoSala;
+  ocultarPantallas();
+  $("sala-crear").hidden = false;
+  $("sub").textContent = "Crear sala online";
+  $("aviso-red").textContent = "";
+  $("crear-nombre").value = nombreGuardado();
+  $("crear-info").hidden = true;
+  $("sala-empezar").disabled = true;
+  $("crear-estado").textContent = "Creando la sala…";
+  abrirAnfitrionNuevo({
+    transporte: transporte(), nombre: $("crear-nombre").value, estado: () => estado, alAccion: aplicarRemoto,
+    alSala: s => { if (modoJuego === "anfitrion" && !hayPartida()) dibujarSala(s); },
+    alPresencia: () => { if (hayPartida()) render(); }, alError: errorRed, temporizador: temporizadorRed
+  }, (err, a) => {
+    if (intento !== intentoSala) { if (a) a.cerrar("cancelada"); return; }
+    if (err) { $("crear-estado").textContent = err.mensaje; return; }
+    red = a; modoJuego = "anfitrion"; codigoSala = a.sala.codigo; miId = 0; vista = 0; conexionEstado = "conectado";
+    $("crear-codigo").textContent = codigoSala;
+    $("crear-link").textContent = linkDeSala(codigoSala);
+    $("crear-info").hidden = false;
+    $("crear-estado").textContent = "";
+    if ($("crear-nombre").value) red.ponerNombre($("crear-nombre").value);
+    dibujarSala(red.publica());
+  });
+}
+
+function empezarOnline() {
+  if (!red || modoJuego !== "anfitrion" || estado) return;
+  const cfg = red.iniciar();
+  if (!cfg) { $("crear-estado").textContent = "Todavía faltan jugadores."; return; }
+  nivelBot = cfg.nivel;
+  estado = crearPartida({ jugadores: cfg.jugadores });
+  miId = 0; vista = 0; construyendo = null; seleccion = null; tirando = false; pausa = false; avisoUI = ""; tableroKey = null; botAcciones = 0; conexionEstado = "conectado";
+  ocultarPantallas();
+  $("juego").hidden = false; $("victoria").hidden = true;
+  $("sub").textContent = "Sala " + codigoSala;
+  render();
+  red.difundir();
+  guardarAutomatico();
+}
+
+// ---------- Invitado ----------
+function irUnirme(codigo) {
+  if (modoJuego !== "local") return;
+  ocultarPantallas();
+  $("sala-unir").hidden = false;
+  $("sub").textContent = "Unirme a una sala";
+  $("aviso-red").textContent = "";
+  $("unir-codigo").value = codigo || "";
+  $("unir-nombre").value = nombreGuardado();
+  $("unir-estado").textContent = "";
+  $("unir-entrar").disabled = false;
+}
+
+function entrarASala() {
+  const codigo = String($("unir-codigo").value || "").trim().toUpperCase(), nombre = redNombreLimpio($("unir-nombre").value);
+  if (!redCodigoValido(codigo)) { $("unir-estado").textContent = "El código tiene 5 letras (por ejemplo, ABCDE)."; return; }
+  if (!nombre) { $("unir-estado").textContent = "Escribí tu nombre."; return; }
+  if (modoJuego !== "local") return;
+  guardarNombre(nombre);
+  $("unir-estado").textContent = "Conectando…";
+  $("unir-entrar").disabled = true;
+  nombreOnline = nombre; codigoSala = codigo; conexionEstado = "conectando";
+  const intento = ++intentoSala;
+  const fallar = mensaje => { if (intento !== intentoSala) return; red = null; modoJuego = "local"; $("unir-estado").textContent = mensaje; $("unir-entrar").disabled = false; };
+  modoJuego = "invitado";
+  red = crearInvitado({
+    transporte: transporte(), codigo, nombre, temporizador: temporizadorRed,
+    alConexion: e => { conexionEstado = e; if (hayPartida()) render(); },
+    alSala: s => { if (intento !== intentoSala) return; if ($("sala-espera").hidden && $("juego").hidden) { ocultarPantallas(); $("sala-espera").hidden = false; $("sub").textContent = "Sala " + codigo; } dibujarSala(s); },
+    alJuego: recibirJuego,
+    alRechazo: fallar,
+    alFin: m => { if (intento === intentoSala) volverAPortada(m); },
+    alError: err => fallar(err.mensaje)
+  });
+}
+let nombreOnline = "";
+
+function recibirJuego(msg) {
+  miId = msg.asiento; vista = miId;
+  presencia = msg.presencia || []; pausadaRed = !!msg.pausada; faltanRed = msg.faltan || [];
+  if ($("juego").hidden) { ocultarPantallas(); $("juego").hidden = false; $("sub").textContent = "Sala " + codigoSala; tableroKey = null; }
+  if (tirando) { vistaPendiente = msg.vista; return; }
+  const ant = vistaRed;
+  if (ant && ant.fase === "juego" && !ant.haTirado && msg.vista.haTirado && msg.vista.dados && ant.numTurno === msg.vista.numTurno) { animarDados(msg.vista, ant); return; }
+  vistaRed = msg.vista;
+  render();
+}
+
+// Los dados los decidió el anfitrión: acá solo se muestra la animación y después el resultado.
+function animarDados(nueva, vieja) {
+  tirando = true; vistaRed = vieja; vistaPendiente = nueva;
+  render();
+  $("resultado").textContent = "Tirando…";
+  const dadosEl = [$("d1"), $("d2")];
+  dadosEl.forEach(d => d.classList.add("rueda"));
+  let ticks = 0;
+  const reloj = setInterval(() => {
+    pintarDado("d1", 1 + Math.floor(Math.random() * 6));
+    pintarDado("d2", 1 + Math.floor(Math.random() * 6));
+    if (++ticks < 12) return;
+    clearInterval(reloj);
+    dadosEl.forEach(d => d.classList.remove("rueda"));
+    tirando = false;
+    vistaRed = vistaPendiente; vistaPendiente = null;
+    render();
+  }, 80);
+}
+
+// ---------- Retomar la partida guardada del anfitrión ----------
+function retomarAnfitrion() {
+  const g = leerGuardado();
+  if (!g || modoJuego !== "local") return;
+  const intento = ++intentoSala;
+  let reintentos = 0;
+  const abrir = () => abrirAnfitrionNuevo({
+    transporte: transporte(), codigo: g.codigo, codigoFijo: true, nombre: g.nombres[0], estado: () => estado, alAccion: aplicarRemoto,
+    alSala: () => {}, alPresencia: () => { if (hayPartida()) render(); }, alError: errorRed, temporizador: temporizadorRed
+  }, (err, a) => {
+    if (intento !== intentoSala) { if (a) a.cerrar("cancelada"); return; }
+    if (err && err.tipo === "unavailable-id" && ++reintentos < 6) { $("aviso-red").textContent = "Reabriendo la sala " + g.codigo + "… (intento " + reintentos + ")"; temporizadorRed.poner(abrir, 2500); return; }
+    if (err) { $("aviso-red").textContent = err.mensaje; return; }
+    red = a; modoJuego = "anfitrion"; codigoSala = g.codigo; miId = 0; vista = 0; nivelBot = g.nivel; conexionEstado = "conectado";
+    estado = estadoDesdeJSON(JSON.stringify(g.estado));
+    red.retomar(g.nombres, g.nivel, g.bots);
+    construyendo = null; seleccion = null; tirando = false; pausa = false; avisoUI = ""; tableroKey = null; botAcciones = 0;
+    ocultarPantallas();
+    $("juego").hidden = false; $("victoria").hidden = true;
+    $("sub").textContent = "Sala " + codigoSala;
+    render();
+  });
+  $("aviso-red").textContent = "Reabriendo la sala " + g.codigo + "…";
+  abrir();
+}
+
+// ====================== Conexiones ======================
+document.querySelectorAll(".opcion").forEach(btn => btn.addEventListener("click", () => {
+  cantidad = Number(btn.dataset.n);
+  document.querySelectorAll(".opcion").forEach(o => o.setAttribute("aria-pressed", String(o === btn)));
+  dibujarNombres();
+}));
+$("empezar").addEventListener("click", empezar);
+$("tirar").addEventListener("click", tirarDados);
+$("terminar").addEventListener("click", () => { construyendo = null; seleccion = null; enviar({ tipo: "terminarTurno" }, turno); });
+$("mezclar").addEventListener("click", () => enviar({ tipo: "mezclarTablero" }, turno));
+$("nueva").addEventListener("click", () => {
+  if (tirando) return;
+  const texto = modoJuego === "anfitrion" ? "¿Cerrar la sala y terminar la partida para todos?" : modoJuego === "invitado" ? "¿Salir de la partida?" : "¿Empezar una partida nueva? Se pierde la actual.";
+  if (confirm(texto)) volverAPortada();
+});
+$("svg2").addEventListener("pointerdown", e => { tipoPuntero = e.pointerType; });
+$("svg2").addEventListener("click", e => {
+  const g = e.target.closest ? e.target.closest(".cand") : null;
+  if (!g || tirando || !hayPartida()) return;
+  const t = g.getAttribute("data-t"), id = Number(g.getAttribute("data-id"));
+  if (tipoPuntero === "touch" && seleccion !== t + id) {      // con el dedo: 1° toque marca, 2° toque confirma
+    seleccion = t + id;
+    avisoUI = "Tocá otra vez el mismo lugar para confirmar.";
+    render();
+    return;
+  }
+  seleccion = null;
+  avisoUI = "";
+  if (fase === "inicial") enviar(t === "v" ? { tipo: "colocarPoblado", v: id } : { tipo: "colocarCamino", e: id }, turno);
+  else if (fase === "juego") {
+    if (t === "h") enviar({ tipo: "moverLadron", hex: id }, turno);
+    else if (pendiente === "caminos") enviar({ tipo: "colocarCaminoGratis", e: id }, turno);
+    else construirUI(t, id);
+  }
+});
+["camino", "poblado", "ciudad"].forEach(t => $("b-" + t).addEventListener("click", () => {
+  if (fase !== "juego" || !haTirado || tirando || pendiente) return;
+  if (construyendo !== t && estadoConstruir(t) !== "ok") return;
+  construyendo = construyendo === t ? null : t;
+  seleccion = null;
+  avisoUI = "";
+  render();
+  if (construyendo) verTablero();
+}));
+$("otra").addEventListener("click", () => volverAPortada());
+document.querySelectorAll(".nivel").forEach(btn => btn.addEventListener("click", () => {
+  nivelBot = btn.dataset.n;
+  document.querySelectorAll(".nivel").forEach(o => o.setAttribute("aria-pressed", String(o === btn)));
+}));
+$("solo-bots").addEventListener("click", () => { tiposJugador = tiposJugador.map(() => "bot"); dibujarNombres(); });
+$("pausa-bot").addEventListener("click", () => {
+  pausa = !pausa;
+  $("pausa-bot").textContent = pausa ? "Seguir" : "Pausar bots";
+  $("pausa-bot").setAttribute("aria-pressed", String(pausa));
+  if (!pausa) programarBot();
+});
+$("vel-bot").addEventListener("click", () => {
+  velocidad = (velocidad + 1) % VELOCIDADES.length;
+  $("vel-bot").textContent = "Velocidad: " + VELOCIDADES[velocidad].nombre;
+});
+$("modo-prueba").addEventListener("click", () => {
+  modoPrueba = !modoPrueba;
+  $("modo-prueba").setAttribute("aria-pressed", String(modoPrueba));
+  $("modo-prueba").textContent = modoPrueba ? "Modo prueba: ver todo (activado)" : "Modo prueba: ver todo";
+  if (estado) render();
+});
+$("guardar").addEventListener("click", abrirPersistencia);
+$("comerciar").addEventListener("click", abrirComercio);
+$("comprar-carta").addEventListener("click", comprarCarta);
+$("proponer").addEventListener("click", proponerComercio);
+dibujarCostos();
+dibujarLeyenda();
+dibujarNombres();
+
+// ====================== Portada y sala online ======================
+$("modo-local").addEventListener("click", () => { ocultarPantallas(); $("inicio").hidden = false; $("sub").textContent = "Armá tu partida"; });
+$("modo-crear").addEventListener("click", irCrearSala);
+$("modo-unir").addEventListener("click", () => irUnirme(""));
+$("retomar").addEventListener("click", retomarAnfitrion);
+$("inicio-volver").addEventListener("click", () => volverAPortada());
+$("unir-volver").addEventListener("click", () => volverAPortada());
+$("sala-cancelar").addEventListener("click", () => volverAPortada());
+$("espera-salir").addEventListener("click", () => volverAPortada());
+$("pausa-terminar").addEventListener("click", () => volverAPortada());
+$("sala-empezar").addEventListener("click", empezarOnline);
+$("unir-entrar").addEventListener("click", entrarASala);
+$("copiar-link").addEventListener("click", () => copiarTexto(linkDeSala(codigoSala), $("crear-estado")));
+$("crear-nombre").addEventListener("input", () => { guardarNombre($("crear-nombre").value); if (red && modoJuego === "anfitrion" && !hayPartida()) { red.ponerNombre($("crear-nombre").value); dibujarSala(red.publica()); } });
+document.querySelectorAll(".sala-n").forEach(b => b.addEventListener("click", () => cambiarConfig({ n: Number(b.dataset.n) })));
+document.querySelectorAll(".sala-bots").forEach(b => b.addEventListener("click", () => cambiarConfig({ bots: Number(b.dataset.b) })));
+document.querySelectorAll(".sala-niv").forEach(b => b.addEventListener("click", () => cambiarConfig({ nivel: b.dataset.n })));
+actualizarBotonRetomar();
+{
+  const codigoLink = redCodigoDeLink(typeof location !== "undefined" ? location.search : "");
+  if (codigoLink) irUnirme(codigoLink);
+}
+</script>
+</body>
+</html>
